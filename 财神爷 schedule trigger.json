@@ -1,0 +1,1678 @@
+{
+  "name": "财神爷v1",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "EUR/USD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -1664
+      ],
+      "id": "02fac549-bb15-4e25-be91-f01d096ef1df",
+      "name": "EUR/USD."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "EUR/JPY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -1440
+      ],
+      "id": "77cf2fab-0431-4989-baa7-ba7c6b06959a",
+      "name": "EUR/JPY."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "EUR/GBP",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -1216
+      ],
+      "id": "094a4690-1c14-4c78-a933-bc6dee1590e2",
+      "name": "EUR/GBP."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "USD/JPY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -992
+      ],
+      "id": "9536bd16-31fc-4d5b-bf00-b274405e5882",
+      "name": "USD/JPY."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -1664
+      ],
+      "id": "fb4af34e-3d1c-41f4-a555-a0061881fdcf",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -1664
+      ],
+      "id": "544f1a89-7376-44a3-9dc4-e1823392be13",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "GBP/JPY",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -768
+      ],
+      "id": "b905440b-b5d5-4dea-aa60-532c56479755",
+      "name": "GBP/JPY."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "GBP/USD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4096,
+        -544
+      ],
+      "id": "eab7fe02-dba9-4abc-ae2a-90410b3fed0d",
+      "name": "GBP/USD."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "http://127.0.0.1:8000/api/v1/positions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -4096,
+        -320
+      ],
+      "id": "32bdd52e-b9d5-494c-bb0d-d644ef042001",
+      "name": "Delete ALL Open Position"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "http://127.0.0.1:8000/api/v1/order/pending",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -3872,
+        -320
+      ],
+      "id": "21a91caf-cb4e-4b4b-bd64-6b22ffd79f83",
+      "name": "delete order pending"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -1440
+      ],
+      "id": "18adb28d-bed1-470c-950b-bafefdbb1006",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -1216
+      ],
+      "id": "0ed2a048-8ed4-4401-a629-800ca053de33",
+      "name": "Split Out2"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -992
+      ],
+      "id": "330e39dd-562b-40c4-a986-40fdc859840a",
+      "name": "Split Out3"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -768
+      ],
+      "id": "faf9fa6f-af81-416c-95d9-7e2c30375a27",
+      "name": "Split Out6"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3872,
+        -544
+      ],
+      "id": "c16eb5aa-fc0a-42cd-8a96-9acec991e298",
+      "name": "Split Out7"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -1664
+      ],
+      "name": "Call 财神爷 Agent1",
+      "id": "24778d9d-14ad-4121-82e6-bca35053df21"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out1').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -1440
+      ],
+      "name": "Call 财神爷 Agent2",
+      "id": "31d64de8-0bae-4263-af67-0349daf36079"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out2').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -1216
+      ],
+      "name": "Call 财神爷 Agent3",
+      "id": "6674001e-a389-49e8-9915-8cac5d72d730"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out3').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -992
+      ],
+      "name": "Call 财神爷 Agent4",
+      "id": "e052fcb3-7db7-4b25-872f-2b03de9c5fc3"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out6').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -768
+      ],
+      "name": "Call 财神爷 Agent5",
+      "id": "f0bb3bd6-8348-47c9-a46c-fe7ec65569dd"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out7').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3648,
+        -544
+      ],
+      "name": "Call 财神爷 Agent6",
+      "id": "147ef58d-1b41-4618-b118-21c1342de8d5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -1440
+      ],
+      "id": "b99501d0-3bf2-4925-8630-306abefa3cd1",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -1216
+      ],
+      "id": "dbed2ae8-fdb8-47a0-80ea-cc5421a18a17",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -992
+      ],
+      "id": "76156ca6-e767-47dd-bd04-001b8953e436",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -768
+      ],
+      "id": "8331e2cf-48f6-46dc-b0bc-34c6bc6720cb",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -544
+      ],
+      "id": "9f42db65-2dc2-4c0c-b1ae-010977cd06ec",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b0ac0f3b-609c-404f-839a-f4510d634316",
+              "leftValue": "={{ DateTime.now().weekdayLong }}",
+              "rightValue": "=Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4544,
+        -320
+      ],
+      "id": "93c894d1-2f67-4b06-a31d-0ddcfcf00cf5",
+      "name": "If6"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4800,
+        -1664
+      ],
+      "id": "ba546d8a-75b4-48b6-af42-fb2901a59d2e",
+      "name": "Google Calendar Trigger",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4800,
+        -1440
+      ],
+      "id": "fad1b749-3313-40b1-8182-376f3f4bb287",
+      "name": "Google Calendar Trigger1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4800,
+        -1216
+      ],
+      "id": "1d4bb701-6400-4922-a4e0-1ecbb5b13eb6",
+      "name": "Google Calendar Trigger2",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4800,
+        -992
+      ],
+      "id": "0f1f52af-053e-410c-998b-bee2971f11e2",
+      "name": "Google Calendar Trigger3",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4800,
+        -768
+      ],
+      "id": "39818897-2576-4a9d-980d-e2a0776b4583",
+      "name": "Google Calendar Trigger4",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4784,
+        -544
+      ],
+      "id": "3c300241-8dc0-4348-8a77-4da46e835141",
+      "name": "Google Calendar Trigger5",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "calendarId": {
+          "__rl": true,
+          "value": "caeb2cf9ff43c2b9aed81fa3a4ded2a946768ba33e3bc87ae76d8777c106ac54@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "chaishenye END Trade Time"
+        },
+        "triggerOn": "eventStarted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTrigger",
+      "typeVersion": 1,
+      "position": [
+        -4784,
+        -320
+      ],
+      "id": "bacd4b7b-7a89-41b8-95f3-8027208fc158",
+      "name": "Google Calendar Trigger6",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -4128,
+        448
+      ],
+      "name": "Call 财神爷 Agent7",
+      "id": "6584137c-7344-4a4c-924a-13d69bac0db1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "42qYNTFEJjrEg8VH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/42qYNTFEJjrEg8VH",
+          "cachedResultName": "财神爷 Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Pair_firstItem": "={{ $('Split Out').first().json.Pair }}"
+          },
+          "matchingColumns": [
+            "Pair_firstItem",
+            "Pair_replace_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "Pair_firstItem",
+              "displayName": "Pair_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Pair_replace_firstItem",
+              "displayName": "Pair_replace_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -4128,
+        672
+      ],
+      "name": "Call 财神爷 Agent",
+      "id": "fc524003-7c4a-49f8-9373-5c9befd4101f"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -4352,
+        672
+      ],
+      "id": "20e8cec8-4e9b-4044-b429-e9c70bfd18a1",
+      "name": "Split Out5"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "Pair",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -4352,
+        448
+      ],
+      "id": "bf73c7aa-6155-4e23-8e31-01deedb69db7",
+      "name": "Split Out4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "USD/CAD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4576,
+        672
+      ],
+      "id": "6c933728-df38-4de0-b7f6-259b2914f3b4",
+      "name": "USD/CAD."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61b737f6-72c5-4e27-a4e2-f9542b866ff7",
+              "name": "Pair",
+              "value": "XAU/USD",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4576,
+        448
+      ],
+      "id": "bd631340-717e-4244-96d4-a964055bc938",
+      "name": "XAU/USD."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "a31fea8a-a38b-4a35-ab5b-f12d569c870c",
+              "leftValue": "={{ $json.Hour }}{{ $json.Minute }}",
+              "rightValue": "1300",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "90626728-312c-4b60-abc9-af3af16f9c17",
+              "leftValue": "={{ $json.Hour }}{{ $json.Minute }}",
+              "rightValue": "0730",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4800,
+        448
+      ],
+      "id": "2d8b309b-3edd-4054-83c2-930319da0cf1",
+      "name": "XAU/USD"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2730b40c-109a-4247-be42-7ff1c4643aa1",
+              "leftValue": "={{ $json.Hour }}{{ $json.Minute }}",
+              "rightValue": "1300",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4800,
+        672
+      ],
+      "id": "7cd5a06f-a9c4-49f7-a291-dbaa5cd55d8b",
+      "name": "USD/CAD"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "EUR/USD.": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EUR/JPY.": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EUR/GBP.": {
+      "main": [
+        [
+          {
+            "node": "Split Out2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "USD/JPY.": {
+      "main": [
+        [
+          {
+            "node": "Split Out3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "EUR/USD.",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "GBP/JPY.": {
+      "main": [
+        [
+          {
+            "node": "Split Out6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GBP/USD.": {
+      "main": [
+        [
+          {
+            "node": "Split Out7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete ALL Open Position": {
+      "main": [
+        [
+          {
+            "node": "delete order pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out2": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out3": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out6": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out7": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "EUR/JPY.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "EUR/GBP.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "USD/JPY.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [
+          {
+            "node": "GBP/JPY.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "GBP/USD.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If6": {
+      "main": [
+        [
+          {
+            "node": "Delete ALL Open Position",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger4": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger3": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger2": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger1": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger5": {
+      "main": [
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar Trigger6": {
+      "main": [
+        [
+          {
+            "node": "If6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out5": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out4": {
+      "main": [
+        [
+          {
+            "node": "Call 财神爷 Agent7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "USD/CAD.": {
+      "main": [
+        [
+          {
+            "node": "Split Out5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XAU/USD.": {
+      "main": [
+        [
+          {
+            "node": "Split Out4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XAU/USD": {
+      "main": [
+        [
+          {
+            "node": "XAU/USD.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "USD/CAD": {
+      "main": [
+        [
+          {
+            "node": "USD/CAD.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Etc/GMT",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "31291357-7421-499c-b1eb-ac0c59d31115",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "45a8aea5f36b87d88eaa3a401762fe22521df3adebf48d50f59470f1d4a792f9"
+  },
+  "id": "lYEAtScNOLhS604O",
+  "tags": []
+}

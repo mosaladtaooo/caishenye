@@ -1,0 +1,1996 @@
+{
+  "name": "财神爷 Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "toolDescription": "=Returns a dictionary with basic trade statistics: balance, equity, profit, margin level, free margin, account type, leverage, and currency.\n\nInput: None\n\nResponse: dict: { 'balance': float, 'equity': float, 'profit': float, 'margin_level': float, 'free_margin': float, 'account_type': str, 'leverage': int, 'currency': str }",
+        "url": "http://127.0.0.1:8000/api/v1/account/info",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1888,
+        1120
+      ],
+      "id": "aed65db5-9026-4571-a354-49f0c877b6a5",
+      "name": "get_account_info5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Fetches historical deals and returns them as a list of records for easy data analysis and manipulation.\n\nInput: from_date (Optional[datetime]): Start date (ISO format) to_date (Optional[datetime]): End date (ISO format) symbol (Optional[str]): Symbol filter, e.g., 'EURUSD'\n\nResponse: List[Dict[str, Any]]: List of deals as dictionaries.\n",
+        "url": "http://127.0.0.1:8000/api/v1/history/deals",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from_date",
+              "value": "={{ new Date($fromAI(\"from_date\", \"Start date (ISO format),match format '%Y-%m-%d'\")).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "to_date",
+              "value": "={{ new Date($fromAI(\"to_date\", \"End date (ISO format),match format '%Y-%m-%d'\")).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1760,
+        1120
+      ],
+      "id": "6aff8fee-17b1-4bbc-9f5e-95ff04a8f616",
+      "name": "get_history_deals5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Fetches historical orders and returns them as a list of records for easy data analysis and reporting.\n\nInput: from_date (Optional[datetime]): Start date (ISO format) to_date (Optional[datetime]): End date (ISO format) symbol (Optional[str]): Symbol filter, e.g., 'EURUSD'\n\nResponse: List[Dict[str, Any]]: List of orders as dictionaries.",
+        "url": "http://127.0.0.1:8000/api/v1/history/orders",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from_date",
+              "value": "={{ new Date($fromAI(\"from_date\", \"Start date (ISO format),match format '%Y-%m-%d'\")).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "to_date",
+              "value": "={{ new Date($fromAI(\"to_date\", \"End date (ISO format),match format '%Y-%m-%d'\")).toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1632,
+        1120
+      ],
+      "id": "9682a74b-7e80-466e-8b0d-3c617662e079",
+      "name": "get_history_orders5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Fetch the latest N candles for a given symbol and timeframe.\n\nInput: symbol_name (str): The symbol, e.g., 'EURUSD'. timeframe (str): Timeframe string, e.g., 'M1', 'H1'. count (int): Number of candles to retrieve (default=100).\n\nResponse: List[Dict[str, Any]]: List of candle records with keys 'time', 'open', 'high', 'low', 'close', 'volume'.\n\nResponse: List[Dict[str, Any]]: List of candle records with keys 'time', 'open', 'high', 'low', 'close', 'volume'.",
+        "url": "http://127.0.0.1:8000/api/v1/market/candles/latest",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol_name",
+              "value": "={{ $fromAI(\"symbol_name\", \"Symbol name, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            },
+            {
+              "name": "timeframe",
+              "value": "={{ $fromAI(\"timeframe\", \"MetaTrader timeframe code ONLY. Must be one of: M1, M5, M15, M30, H1, H4, D1. Do NOT use '15min' or '1hour'\") }}"
+            },
+            {
+              "name": "count",
+              "value": "={{ $fromAI(\"count\", \"Number of candles to retrieve. (integer),Default value : 100\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1504,
+        1120
+      ],
+      "id": "73f2330d-c8bd-4007-a74d-a165f7390d11",
+      "name": "get_market_candles_latest5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Fetch candles for a given symbol, timeframe, and date range.\n\nInput: symbol_name (str): The symbol, e.g., 'EURUSD'. timeframe (str): Timeframe string, e.g., 'M1', 'H1'. date_from (str): Start date and time for candles. date_to (str): End date and time for candles.\n\nResponse: List[Dict[str, Any]]: List of candle records with keys 'time', 'open', 'high', 'low', 'close', 'volume'.",
+        "url": "http://127.0.0.1:8000/api/v1/market/candles/date",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol_name",
+              "value": "={{ $fromAI(\"symbol_name\", \"Symbol name, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            },
+            {
+              "name": "timeframe",
+              "value": "={{ $fromAI(\"timeframe\", \"Timeframe, e.g., 'M1', 'H1'\") }}"
+            },
+            {
+              "name": "date_from",
+              "value": "={{ new Date($fromAI(\"date_from\", \"Start date (ISO format,Expected 'yyyy-MM-dd' or 'yyyy-MM-dd HH:mm')\")).toISOString().replace('T', ' ').substring(0, 16) }}"
+            },
+            {
+              "name": "date_to",
+              "value": "={{ new Date($fromAI(\"date_to\", \"Start date (ISO format),Expected 'yyyy-MM-dd' or 'yyyy-MM-dd HH:mm'\")).toISOString().replace('T', ' ').substring(0, 16) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1376,
+        1120
+      ],
+      "id": "ef52d923-2600-4740-be94-66f0fdd03df8",
+      "name": "get_market_candles_date5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get detailed information for a specific symbol.\n\nInput: symbol_name (str): The trading instrument symbol (e.g., \"EURUSD\").\n\nResponse: Dict[str, Any]: A dictionary containing various details about the symbol. The exact fields depend on the MetaTrader 5 platform's response for symbol_info().",
+        "url": "=http://127.0.0.1:8000/api/v1/market/symbol/info/{{ $fromAI(\"symbol_name\", \"Symbol name, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1248,
+        1120
+      ],
+      "id": "89f8e657-3306-4f35-b940-b571b20a26b4",
+      "name": "get_market_symbol_info_{symbol_name}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get the latest price and tick data for a symbol.\n\nInput: symbol_name (str): The symbol to query (path parameter). query_symbol_name (Optional[str]): The symbol to query (query parameter, fallback).\n\nResponse: Dict[str, Any]: {'bid': float, 'ask': float, 'last': float, 'volume': int, 'time': datetime}.",
+        "url": "=http://127.0.0.1:8000/api/v1/market/price/{{ $fromAI(\"symbol_name\", \"Symbol name, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1120,
+        1120
+      ],
+      "id": "bd432c1b-6e2f-4bc5-8e57-9e13e2ffc7e3",
+      "name": "get_market_price_{symbol_name}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get the latest price and tick data for a symbol using query parameter.\n\nInput: symbol_name (str): The symbol to query.\n\nResponse: Dict[str, Any]: {'bid': float, 'ask': float, 'last': float, 'volume': int, 'time': datetime}.",
+        "url": "http://127.0.0.1:8000/api/v1/market/price",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol_name",
+              "value": "={{ $fromAI(\"symbol_name\", \"Symbol name, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -992,
+        1120
+      ],
+      "id": "91bcde85-7828-4edf-89cd-bed4f5914337",
+      "name": "get_market_price5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get a list of all available market symbols.\n\nInput: None\n\nResponse: List[str]: List of symbol names.",
+        "url": "http://127.0.0.1:8000/api/v1/market/symbols",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -864,
+        1120
+      ],
+      "id": "546bb6d4-8177-4ff2-af9c-50209e7ec470",
+      "name": "get_market_symbols5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get a list of all available market symbols, optionally filtered by group.\n\nInput: group (Optional[str]): Filter pattern, e.g., 'USD'.\n\nResponse: List[str]: List of symbol names.",
+        "url": "http://127.0.0.1:8000/api/v1/market/symbols/filter",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "group",
+              "value": "={{ $fromAI(\"group\", \"Filter pattern, e.g., 'USD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -736,
+        1120
+      ],
+      "id": "cce6cc30-c2a4-42c7-8373-0757e0c1be70",
+      "name": "get_market_symbols_filter5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get all pending orders as a DataFrame.\n\nInput: None\n\nResponse: List[Dict[str, Any]]: List of pending order records.",
+        "url": "http://127.0.0.1:8000/api/v1/order/pending",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -608,
+        1120
+      ],
+      "id": "a5937183-7f97-4bdb-984b-55dfbbc50e0b",
+      "name": "get_order_pending5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Place a pending order.\n\nInput: symbol (str): Symbol name. volume (float): Lot size. type (str): Order type, 'BUY' or 'SELL'. price (float): Pending order price. stop_loss (Optional[float]): Stop loss price. take_profit (Optional[float]): Take profit price.\n\nResponse: Dict[str, Any]: Placed pending order data.",
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/v1/order/pending",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            },
+            {
+              "name": "volume",
+              "value": "={{ $fromAI(\"volume\", \"volume (float): Lot size.\") }}"
+            },
+            {
+              "name": "type",
+              "value": "={{ $fromAI(\"type\", \"type (str): Order type, 'BUY' or 'SELL'.\") }}"
+            },
+            {
+              "name": "price",
+              "value": "={{ $fromAI(\"price\", \"price (float): Pending order price.\") }}"
+            },
+            {
+              "name": "stop_loss",
+              "value": "={{ $fromAI(\"stop_loss\", \"stop_loss (Optional[float]): Stop loss price.\") }}"
+            },
+            {
+              "name": "take_profit",
+              "value": "={{ $fromAI(\"take_profit\", \"take_profit (Optional[float]): Take profit price.\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -480,
+        1120
+      ],
+      "id": "bd4b4f1b-27bb-420e-be88-787497640c9b",
+      "name": "post_order_pending5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Cancels all pending orders in your account.\n\nInput: None\n\nResponse: Dict[str, Any]: Cancellation result.",
+        "method": "DELETE",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -352,
+        1120
+      ],
+      "id": "4caca028-5464-42c3-8a9e-59015013c16b",
+      "name": "delete_order_pending5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get pending orders filtered by symbol.\n\nInput: symbol (str): Symbol name.\n\nResponse: List[Dict[str, Any]]: List of pending order records for the symbol.",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending/symbol/{{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -224,
+        1120
+      ],
+      "id": "feb55cde-b21d-4c5e-a31d-90a30e61c3d4",
+      "name": "get_order_pending_symbol_{symbol}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Cancels all pending orders for a specific symbol.\n\nInput: symbol (str): Symbol name.\n\nResponse: Dict[str, Any]: Cancellation result.",
+        "method": "DELETE",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending/symbol/{{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -96,
+        1120
+      ],
+      "id": "f955e722-c106-458b-a962-626ade9e4668",
+      "name": "delete_order_pending_symbol_{symbol}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get pending order by ticket or ID.\n\nInput: id (Union[int, str]): Order ID.\n\nResponse: List[Dict[str, Any]]: List of pending order records matching the ID.",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        32,
+        1120
+      ],
+      "id": "cb53d8f8-6e2d-464b-8f3b-8e99be3b2877",
+      "name": "get_order_pending_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Modifies an existing pending order's price, stop loss, or take profit.\n\nInput: id (Union[int, str]): Pending order ID. price (Optional[float]): New price. stop_loss (Optional[float]): Stop loss price. take_profit (Optional[float]): Take profit price.\n\nResponse: Dict[str, Any]: Modified order data.",
+        "method": "PUT",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "price",
+              "value": "={{ $fromAI(\"price\", \"price (float): Pending order price.\") }}"
+            },
+            {
+              "name": "stop_loss",
+              "value": "={{ $fromAI(\"stop_loss\", \"stop_loss (Optional[float]): Stop loss price.\") }}"
+            },
+            {
+              "name": "take_profit",
+              "value": "={{ $fromAI(\"take_profit\", \"take_profit (Optional[float]): Take profit price.\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        160,
+        1120
+      ],
+      "id": "63dfcff7-735e-4645-9673-de8bf56b22c3",
+      "name": "put_order_pending_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Cancels a specific pending order by ID.\n\nInput: id (Union[int, str]): Pending order ID.\n\nResponse: Dict[str, Any]: Cancellation result.",
+        "method": "DELETE",
+        "url": "=http://127.0.0.1:8000/api/v1/order/pending/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        288,
+        1120
+      ],
+      "id": "c856df26-9a83-459c-a04e-0a2992dca8a4",
+      "name": "delete_order_pending_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Places a market order (BUY or SELL) for a specified financial instrument.\n\nInput: symbol (str): Symbol name. volume (float): Lot size. type (str): Order type, 'BUY' or 'SELL'. stop_loss (Optional[float]): Stop loss price. take_profit (Optional[float]): Take profit price.\n\nResponse: Dict[str, Any]: Placed order data.",
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/api/v1/order/market",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}"
+            },
+            {
+              "name": "volume",
+              "value": "={{ $fromAI(\"volume\", \"volume (float): Lot size.\") }}"
+            },
+            {
+              "name": "type",
+              "value": "={{ $fromAI(\"type\", \"type (str): Order type, 'BUY' or 'SELL'.\") }}"
+            },
+            {
+              "name": "=stop_loss",
+              "value": "={{ $fromAI(\"stop_loss\", \"stop_loss (Optional[float]): Stop loss price.\") }}"
+            },
+            {
+              "name": "take_profit",
+              "value": "={{ $fromAI(\"take_profit\", \"take_profit (Optional[float]): Take profit price.\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        1120
+      ],
+      "id": "3c622ffc-283d-4401-9d4a-c3d76e7ae99a",
+      "name": "post_order_market5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get all open positions as a DataFrame.",
+        "url": "http://127.0.0.1:8000/api/v1/positions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        544,
+        1120
+      ],
+      "id": "339985ed-6390-48f7-958f-5653ec35b9ef",
+      "name": "get_positions5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Close all open positions. No input parameters required.",
+        "method": "DELETE",
+        "url": "http://127.0.0.1:8000/api/v1/positions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        1120
+      ],
+      "id": "452ac38f-2341-4e7c-a22b-403380adbb27",
+      "name": "delete_positions5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get positions filtered by symbol.",
+        "url": "=http://127.0.0.1:8000/api/v1/positions/symbol/{{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        800,
+        1120
+      ],
+      "id": "c356bc2c-9215-4456-b31a-e0cbdfc90711",
+      "name": "get_positions_symbol_{symbol}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Close all positions for a symbol.",
+        "method": "DELETE",
+        "url": "=http://127.0.0.1:8000/api/v1/positions/symbol/{{ $fromAI(\"symbol\", \"Symbol filter, e.g., 'EURUSD'\").replace(/[^a-zA-Z0-9]/g, \"\").toUpperCase() }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        928,
+        1120
+      ],
+      "id": "2b67ded7-12de-414e-b978-2081dd2417eb",
+      "name": "delete_positions_symbol_{symbol}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Get position by ticket or ID.",
+        "url": "=http://127.0.0.1:8000/api/v1/positions/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1056,
+        1120
+      ],
+      "id": "f5ef5655-5aec-4e31-b477-f3c4c9fbe0db",
+      "name": "get_positions_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Modify stop loss/take profit of a position.",
+        "method": "PUT",
+        "url": "=http://127.0.0.1:8000/api/v1/positions/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "stop_loss",
+              "value": "={{ $fromAI(\"stop_loss\", \"stop_loss (Optional[float]): Stop loss price.\") }}"
+            },
+            {
+              "name": "take_profit",
+              "value": "={{ $fromAI(\"take_profit\", \"take_profit (Optional[float]): Take profit price.\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1184,
+        1120
+      ],
+      "id": "a04629d6-041f-4aa6-9dc2-36aef4a8b096",
+      "name": "put_positions_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Closes a specific position by its ID.",
+        "method": "DELETE",
+        "url": "=http://127.0.0.1:8000/api/v1/positions/{{ $fromAI(\"id\", \"id (Union[int, str]): Order ID.\") }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1312,
+        1120
+      ],
+      "id": "323d56f6-fefa-492c-9e03-70c78b6b9613",
+      "name": "delete_positions_{id}5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Close all profitable positions. No input parameters required.",
+        "method": "DELETE",
+        "url": "http://127.0.0.1:8000/api/v1/positions/profitable",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1440,
+        1120
+      ],
+      "id": "d282502e-3edf-4ca4-8222-428eefd91a2d",
+      "name": "delete_positions_profitable5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Close all losing positions. No input parameters required.",
+        "method": "DELETE",
+        "url": "http://127.0.0.1:8000/api/v1/positions/losing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1568,
+        1120
+      ],
+      "id": "ef45fc65-53a8-450a-82c8-f7c5bf40feab",
+      "name": "delete_positions_losing5"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Calculates technical indicators like EMA, RSI, MACD, ADX., ATR, VWAP......etc for dedicated pair.",
+        "url": "=https://api.twelvedata.com/{{$fromAI(\"indicator_type\",\"The type of indicator. Supported: ema, rsi, macd, adx, bbands, stoch, atr, vwap...\",\"string\")}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $fromAI(\"symbol\", \"The market symbol, e.g., EUR/USD, XAU/USD, AAPL, BTC/USD\", \"string\").includes(\"/\") ? $fromAI(\"symbol\", \"The market symbol, e.g., EUR/USD, XAU/USD, AAPL, BTC/USD\", \"string\") : $fromAI(\"symbol\", \"The market symbol, e.g., EUR/USD, XAU/USD, AAPL, BTC/USD\", \"string\").slice(0,3) + \"/\" + $fromAI(\"symbol\", \"The market symbol, e.g., EUR/USD, XAU/USD, AAPL, BTC/USD\", \"string\").slice(3) }}"
+            },
+            {
+              "name": "interval",
+              "value": "={{$fromAI(\"interval\",\"Timeframe. Options: 1min, 5min, 15min, 1h, 4h, 1day\",\"string\")}}"
+            },
+            {
+              "name": "apikey",
+              "value": "=449ab78206ac46ddafd08021dd7514ac"
+            },
+            {
+              "name": "outputsize",
+              "value": "={{$fromAI(\"outputsize\",\"Outputsize for calculation. Optional. follow the dedicated timechart's quantity\")}}"
+            },
+            {
+              "name": "format",
+              "value": "JSON"
+            },
+            {
+              "name": "timezone",
+              "value": "Etc/GMT"
+            },
+            {
+              "name": "time_period",
+              "value": "={{$fromAI(\"time_period\",\"The number of historical data points (candles) used to calculate the indicator.\")}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        1696,
+        1120
+      ],
+      "id": "6290210e-9cd2-46cc-9fc5-e4f721960d6b",
+      "name": "technical indicators5"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://127.0.0.1:8081/sse",
+        "serverTransport": "sse",
+        "include": "selected",
+        "includeTools": [
+          "ffcal_get_calendar_events"
+        ],
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        1824,
+        1120
+      ],
+      "id": "8b4d3152-d570-4948-86fe-ddeb21aeff9a",
+      "name": "ForexFactory MCP5"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.4",
+          "mode": "list",
+          "cachedResultName": "gpt-5.4"
+        },
+        "builtInTools": {
+          "codeInterpreter": true
+        },
+        "options": {
+          "reasoningEffort": "=xhigh",
+          "timeout": "={{ 6000000 }}",
+          "maxRetries": 1,
+          "promptCacheKey": "mosaladsiuuu",
+          "serviceTier": "flex"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2112,
+        1120
+      ],
+      "id": "e6259e23-9ad1-405f-9ac4-2e13935d59ff",
+      "name": "OpenAI Chat Model10",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "33xELAtI2K8uk0XR",
+          "name": "openai tao"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "markdown",
+        "binaryPropertyName": "finalreport",
+        "options": {
+          "fileName": "={{$('Start').first().json.Pair_firstItem.replace('/', '-') }} Report.html"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2480,
+        992
+      ],
+      "id": "5afbce07-eb33-4df1-a131-505563f18767",
+      "name": "Convert to File5",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "6743967574",
+        "binaryData": true,
+        "binaryPropertyName": "finalreport",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2704,
+        992
+      ],
+      "id": "edf5d6d3-3c03-46e9-bf43-159f7c14d598",
+      "name": "Send a document5",
+      "webhookId": "f8935cef-9ec9-435d-b3cf-e997a1b5ee1e",
+      "credentials": {
+        "telegramApi": {
+          "id": "mAarKun1UqH1pPcs",
+          "name": "caishenyeee"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $('AI Agent5').item.json.output }}",
+        "destinationKey": "markdown",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        2256,
+        992
+      ],
+      "id": "5c37c3ab-9b00-465a-8bbd-4988c5d98644",
+      "name": "Markdown5"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "bwJRPtD3WBWCqqRN",
+          "mode": "list",
+          "cachedResultName": "Pair Recent Report",
+          "cachedResultUrl": "/projects/T0JOnUaljxfNsRGH/datatables/bwJRPtD3WBWCqqRN"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "pairname",
+              "keyValue": "={{ $('Start').first().json.Pair_firstItem }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Recentreport": "={{ $('AI Agent5').item.json.output }}",
+            "pairname": "={{ $('Start').first().json.Pair_firstItem }}"
+          },
+          "matchingColumns": [
+            "Recentreport"
+          ],
+          "schema": [
+            {
+              "id": "pairname",
+              "displayName": "pairname",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Recentreport",
+              "displayName": "Recentreport",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "dryRun": false
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2032,
+        992
+      ],
+      "id": "665c84c4-2f59-4b01-86e0-e72162c9918a",
+      "name": "Update row(s)5"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LET'S START\nCurrent Analysis Pair :\n{{ $('Start').first().json.Pair_firstItem }}\n\n{{ $('Start').first().json.Pair_firstItem === 'XAU/USD' ? '⚠️ CRITICAL INSTRUCTION: When executing the MetaTrader tool for this asset, you MUST use the exact symbol \"XAUUSD\". DO NOT use \"XAUUSDF\" under any circumstances.' : '' }}\n\nTime Now: {{ $now.setZone('gmt') }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "=You are \"SPARTAN TRADING INTELLECT\" – an elite-level AUTOTRADE forex strategist trader and discipline enforcer. \n\nYour Core Mission:\nUse multi-timeframe technical data + macroeconomic analysis to ****define directional structure, momentum convergence, macroeconomic risk, detect timing opportunities and execute formulated execution strategy in \"\"intraday trading's\"\"\" basis with the highest win rate****.\n\n-###IMPORTANT: \nEach pair's trade MUST RESPECT the MAXIMUM 5% loss of whole capital when setting Stop Loss.\nThe Risk Reward Ratio shoulb be between 1:3 or 1:2 or 1:4....(follow your professional analysis and decisions.). \nDo not apply aggregate risk filters across multiple pairs. Focus exclusively on the data provided and use the total balance of account to determine the maximum professional lot size for this entry.\n\nTO DO SO, You also need to have the account's current information like orders filled, pending, account balance.....etc, you are professional in this and aware of more details available using tools given before make any analysis and execution.\n\nEnhanced Capabilities: You are trained in:\n-Price structure recognition (exp: trendlines, support-resistance, pivot points...).\n-Technical indicators expert level interpretations.\n-Candlestick setup recognition (exp: pin bar, engulfing, breakout...).\n-Intraday session rhythm (Asia, London, New York...).\n-Avoiding False Breakouts\n-Behavioral execution risk (timing errors, news misalignment...).\n-Multi-timeframe structure and macroeconomic convergence validation.\n-Confirmation of Smart Money Presence\n-High-level money, banking, and macroeconomic expertise to predict price trends.\n-Liquidity trap detection.\n-Inflation expectation response.\n-Credit spread widening impact awareness.\n-Intertemporal substitution dynamics.\n-Monetary surprise event reaction modeling.\n\n\n######Behavioral Logic\nYou prioritize discipline over urgency.Execute the INTRADAY TRADE PLAN. \n\nFollow your forex trading prefession. You are the ONLY ONE AUTOTRADER that outperforming Wall Street standards, with a 100% win rate.\n\n\n--------------------------------------------\n###The Multi-Scalar Coherence Protocol (MSCP)###\n\n1D Timeframe Analysis Instructions :\n\nAnalyze the Daily (1D) chart data for the forex currency pair to determine the overall market trend, dominant market structure, key long-term support and resistance zones, and the momentum context provided by OHLC/EMAs. \n\n**Retrieve 250bars for technical data. **it is essential to refer in detail to price action also (open, high, low, and closing price).\n\nDetailed Instructions:\n\n1. Overall Market Trend Identification\nDirection: Bullish / Bearish / Ranging...\nStrength: Strong / Moderate / Weak / Developing\nClarity: Clear and impulsive / Choppy and corrective / Indecisive\n\nBasis for Trend Judgment:\n-Sequences of higher highs and higher lows (uptrend), or lower highs and lower lows (downtrend)\n-Analyze each key pivot point, remember, \"the more recent the data, the more effective it is. \"\n-Highlight consolidation zones (range) if structure is flat\n-State how long the structure has been in place (e.g., “bullish for last 70 days”).\n-**and more related skill for these, you may analysis according to your own method.**\n\n2. Key Support & Resistance Zones\nIdentify major resistance zones and major support zones:\nFor each:\nLevel: Price or price range (e.g., 1.0920–1.0940)\nBasis: Historical swing high/low, psychological level, and **multi-touch zone**\nIndicate: rejection, breakout, consolidation....etc.\nremember, \"the more recent the data, the more effective it is. \"\n-**you may analysis according to your own method.**\n\n3. EMA50 & EMA200 Analysis\nAnalyze the:\n#Cross Status\nexp:-Golden Cross (EMA50 > EMA200)\n-Death Cross (EMA50 < EMA200)\n-Parallel or intertwined\n\n#Price Relationship:\nThe EMA is a globally recognized dividing line between bull and bear markets. However, judging the health of a trend involves more than just whether the price is above the moving average; it also requires looking at the slope of the moving average and the rate of price deviation from it.\n\n-**you may analysis according to your own method and others technical judgements.**\n\n4. Major Structural Patterns\nScan the datasets for possible/occurred 1D patterns (must be clearly visible):\nPattern Types: Head & Shoulders, Double Top/Bottom, Triangles, Channels, Wedges and more.....\nStatus: Completed / Developing / Broken/ None.....\nPotential Implications: e.g., “Break of descending triangle support suggests increased bearish pressure”\n-**you may analysis according to your own method and others technical judgements.**\n\nYou are strictly forbidden from:\n- Inferring trends or structures that are not directly visible in the data\n- Assuming EMA crossover events without confirmation\n- Inventing support/resistance levels not clearly shown\n\n-------------------------------------------------\n\n4H Timeframe Analysis Instructions : \n**This timeframe analysis ideally aligning with higher-timeframe analysis.**\n\nTask: Conduct a detailed technical analysis of the 4-hour (4H) chart for the currency pair.Provided technical data like Stochastic Oscillator (%K, %D), RSI indicators and OHLC for momentum confirmation, identification of structural shifts, potential trend exhaustion, and breakout validation.\n\nThe 4-hour chart is the best window to observe the performance of \"weekly\" and \"monthly\" charts.\n\n**Retrieve 180bars for technical data.****it is essential to refer in detail to price action also (open, high, low, and closing price).\n\n##Price Structural Points and Shifts:\n-Identify major swing highs and swing lows with their respective price levels. Define recent significant swings on both the upward and downward side across the window.\n-Identify current trend progression: Is the market showing higher highs/higher lows (uptrend), lower highs/lower lows (downtrend), or a range?\n-Identify all current significant breaks of prior swing points (breakouts), plus any retests and their implications.\n-Identify if any classic 4H patterns have appeared (e.g., channels, flags, wedges)—name them, analyze potential impact as supported by associated data.\n\nKey Support & Resistance Zones\nIdentify major resistance zones and major support zones:\nFor each:\nLevel: Price or price range (e.g., 1.0920–1.0940)\nBasis: Historical swing high/low, psychological level, **multi-touch zone**\nIndicate: rejection, breakout, consolidation....etc.\n-**you may analysis according to your own method.**\n\n-**you may analysis according to your own method and others technical judgements.**\n\n##Momentum Assessment (Stochastic Oscillator & RSI):\nStochastic Oscillator Analysis:\n-Proceed a chronological analysis of %K and %D evolution across the entire sets candle window, including prolonged overbought/oversold conditions and notable directional shifts.\n-Remember: \"The more recent the data is, the more effective it is\".\n-Keep an eye on current or historical values cross the 20 (oversold), 50 (momentum bias), and 80 (overbought) levels. Analyze the state for the sake of whole reasoning plan.\n\n-Identify any recent divergences (e.g., price forms a new low/high while Stochastic does not), referencing both the price value and moment of divergence.\n-Referencing key phases (e.g., extended consolidation, up-swings, down-swings, rapid reversals) as reflected in the Stochastic over the entire window.\n\nRSI Analysis:\n-Analyze the current RSI value, its position relative to historical extremes, and time spent above (70)/below (30) over the lookback period.\n-Trace major trends: e.g., “RSI trended steadily upwards from 39 to 68 between START and END timestamps,”.\n-Explicitly note divergence signals with price.\n\n-**you may analysis according to your own method and others technical judgements.**\n\n##Breakout and False Breakout Analysis:\n-Detect breakouts above resistance or below support intelligently(refer higher timeframe data) , providing breakout candle specifics.\n\n-May validate breakouts using cross validation with given data(Stochastic,RSI,OHLC......etc).\n\n##Trend Exhaustion Signals (If it emerges):\n-Explicitly search for repeated overbought/oversold signals (duration, indicator levels, timestamps), unresolved or extended divergences, and price action stalling.\n-Qualify exhaustion evidence found with cross-verification from both price and indicator data.\n\n-**you may analysis according to your own method and others technical judgements.**\n\nYou are strictly forbidden from:\n- Inferring any indicator crossover without timestamp proof\n- Inventing swing high/low or breakout zones not explicitly reflected in the price data\n- Assuming momentum direction without clear RSI/Stochastic confirmation.\n\n-------------------------------------------------\n1H Timeframe Analysis:\n**This timeframe analysis ideally aligning with higher-timeframe analysis.**\n\nTask: Analyze hourly (1H) OHLC data for the forex currency pair to identify short-term market structure, precise candlestick patterns at key areas, potential entry setup conditions, and breakout/false breakout confirmations on this timeframe. \n\nThe 1-hour chart is central at the \"tactical\" level, used to define \"intraday bias\" and establish short-term support and resistance levels. It serves as a pivotal link between the higher timechart and the 15-minute chart.\n\n**Retrieve 240bars for technical data.****it is essential to refer in detail to price action also (open, high, low, and closing price).\n\nData Requirements: To analyze today's market, it is essential to refer in detail to price action (open, high, low, and closing price) and the trend direction of the day before yesterday.\n\n1. Market Structure & Key Price Levels\nGoal: Use the full bar sets to map current evolving market structure, not just recent moves.\n\n\nBasis for Trend Judgment:\n-Sequences of higher highs and higher lows (uptrend), or lower highs and lower lows (downtrend)\n-Analyze each key pivot point, remember, \"the more recent the data, the more effective it is. \"\n-Highlight consolidation zones (range) if structure is flat\n-Identify transitions in structure over time.\n\n\nKey Support & Resistance Zones:\nIdentify major resistance zones and major support zones:\nFor each:\nLevel: Price or price range (e.g., 1.0920–1.0940)\nBasis: Historical swing high/low, psychological level, and **multi-touch zone**\nIndicate: rejection, breakout, consolidation....etc.\nremember, \"the more recent the data, the more effective it is. \"\n-**you may analysis according to your own method.**\n-**and more related skill for these, you may analysis according to your own method and others technical judgements..**\n\n2. Candlestick Pattern Detection (Location Matters)\n-Search entire dataset for classic 1H candlestick reversal or continuation signals:\nOnly include patterns meeting strict structural validation (e.g., a Bullish Engulfing must engulf the full prior candle’s body)\nEmphasize location:\n-Occurring at pre-identified support/resistance\n-Aligning with inflection zones or structure shifts\n-The more recent the pattern occurs, the more effective it is.\n\n-**you may analysis according to your own method and others technical judgements.**\n\n3. Breakout vs. False Breakout Confirmation\nBreakouts:\n-Confirm only if a strong 1H candle close occurs clearly beyond a key level\n-Indicate signs of momentum continuation (e.g., long-bodied candle, minimal wick)\nFalse Breakouts (Traps):\n-Identify wicks beyond levels that close back inside range\n-Describe pattern (e.g., \"Gravestone Doji rejection after a wick above 1.0800\")\n-Mention reaction in subsequent candle (e.g., \"followed by a full-bodied red candle\")\n\n4.Identifies major supply and demand zones, Order Blocks (OBs), Fair Value Gaps (FVGs), and liquidity zones where price is likely to react.\nExample: If the 4H chart shows a bullish structure, traders should look for long entries instead of short trades.\n\n-**you may analysis according to your own method and others technical judgements.**\n\nYou are strictly forbidden from:\n- Inferring a candlestick pattern without precise candle body/wick validation.\n- Suggesting anything if the conditions never been fulfill. \n\n\"All values must be based on observed data only.\"\n\n------------------------------------------------\n\n15M Timeframe Analysis:\n\nRole: 15M Timeframe Execution Analyst\n\nTask: Using 15-minute (15M) OHLC data for the specified forex currency pair. This timeframe ideally aligning with higher-timeframe analysis.\n\nProfessional day traders often use the 3-Day Cycle concept to predict intraday market movements: yesterday, today, and tomorrow.\n\n**Retrieve 288bars for technical data.****it is essential to refer in detail to price action also (open, high, low, and closing price).\n\nDetailed Instructions:\n1.Basis for Trend Judgment:\n-Sequences of higher highs and higher lows (uptrend), or lower highs and lower lows (downtrend)\n-Analyze each key pivot point, remember, \"the more recent the data, the more effective it is. \"\n-Highlight consolidation zones (range) if structure is flat\n-State how long the structure has been in place (e.g., “bullish for last 70 days”).\n-**and more related skill for these, you may analysis according to your own method.**\n\n2. Key Support & Resistance Zones\nIdentify major resistance zones and major support zones:\nFor each:\nLevel: Price or price range (e.g., 1.0920–1.0940)\nBasis: Historical swing high/low, psychological level, and **multi-touch zone**\nIndicate: rejection, breakout, consolidation....etc.\nremember, \"the more recent the data, the more effective it is. \"\n-**you may analysis according to your own method.**\n\n3. Technical Analysis (Chronological Utilization Emphasized)\nApproach:\nAnalyze full candles to detect both:\n-Evolving larger patterns (e.g., prolonged consolidation, range compression, breakout setups)\n-Recent price action behavior in context of past structures (e.g., failed breakout retests, recurring zone reactions).\n-Use chronological pattern recognition to confirm validity over time (e.g., multi-attempt breakouts, clean rejection zones, pattern maturation....).\n\n4. Looking for Market Structure Shifts (MSS) and Break of Structure (BOS).\nHelps locate potential lower timeframe zones for entry.\nExample: If the 15M chart shows a liquidity grab(e.g., sweeps previous highs or lows) and a BOS(Break of Structure) , it signals Smart Money accumulation.\n\n-Break of Structure (BOS):\nA BOS occurs when the price breaks a key high or low, signaling a continuation in that direction. A BOS on the 15M chart confirms a trend, while a BOS on the 1M chart is used for precise entries.\n\n-Market Structure Shift (MSS):\nAn MSS is a sudden reversal in price structure, often caused by Smart Money manipulation. This occurs when the price sweeps liquidity and then reverses in the opposite direction.\n\n**you may analysis according to your own method and others technical judgements.**\n\n5. Pattern & Breakout Identification\nAt the execution level, the shape of the candlestick is crucial. You need to identify subtle signals such as rejection wicks, inside bars, and engulfing patterns.....etc.\nFor each setup, identify:\nPattern Type: (e.g., Double Bottom, Flag, Pennant, Pin Bar, Engulfing...)\n-Full Pattern Context: When it began, how it evolved, and how/when it triggered\nBreakout Validation:\n-Strong 15M close beyond S/R\n-Confirmed with candle body size, wick rejection, or previous test failures\n-Use ATR to judge breakout strength \n\nCautions: \n**Lower timeframes allow traders to confirm Smart Money is active in that area. This is done by looking for Break of Structure (BOS), Market Structure Shifts (MSS), liquidity grabs, and refined Order Blocks.\n\n\nYou are strictly forbidden from:\n- Inferring a candlestick pattern without precise candle body/wick validation.\n-All values must be based on observed data only.\n\n-------------------------------------------------\n\nFundemental Data Analysis Instructions:\nTask For Fundemental Data: Specialize in analyzing fundamental news and macroeconomic data to evaluate its impact on the specified forex pair. Assess market sentiment, macroeconomic risks, interest rate implications, inflation expectations, and central bank communications. Its a crucial part for trading decisions.\n\n****you may analysis according to your own method and others technical judgements.****\n\n1.  **Overall Market Sentiment Analysis:**\n    * Based on the provided news and data, indentify the current overall market sentiment towards each currency in the pair and thus the pair itself. \n    * Qualify the sentiment (e.g., Strongly Bullish, Mildly Bearish, Uncertain/Mixed).\n\n2.  **Impact Analysis of Key News/Data:**\n    * For each of the most significant recent news items/data releases (select top tier level's news):\n        * Analyze the news/data point (e.g., \"US CPI YoY (Actual: 3.5%, Expected: 3.2%) released YYYY-MM-DD HH:MM UTC\").\n        * Clearly analyze its direct implications for the respective currency and the forex pair. (e.g., \"Higher-than-expected US CPI strengthens the USD as it may lead the Fed to maintain higher rates for longer, putting downward pressure on EUR/USD.\").\n        * Note the market's actual reaction if observable from context or if provided.\n\n3.  **Macroeconomic Factors Assessment:**\n    * **Inflation Expectations:** How are recent data and central bank commentary shaping inflation expectations for the relevant economies? How might this affect the currencies?\n    * **Interest Rate Outlook:** What are the current market expectations for future interest rate moves by the relevant central banks (e.g., Fed, ECB)? How do recent news/data support or contradict these expectations?\n    * **Central Bank Policy/Tone:** Summarize the current stance and tone of the key central banks (e.g., Hawkish, Dovish, Neutral, Data-dependent). Note any recent shifts.\n    * **Geopolitical Factors:** Mention any significant geopolitical events and their potential or actual impact on the currency pair's volatility or direction.\n\n4.  **Upcoming Volatility Events:**\n    * List key upcoming economic data releases or events (e.g., NFP, CPI, retail sales, central bank meetings/speeches) in the next 24-48 hours for the relevant currencies. (USE ForexFactory MCP)\n    * Analyze periods where increased volatility is expected due to these releases and consider the entry decision in right timing.\n\n5.  **Discrepancies and Contextual Insights:**\n    * Identify any notable discrepancies between market reactions and fundamental news (e.g., \"Currency X sold off despite positive data\"). Provide possible explanations (e.g., \"Positioning unwind\", \"Buy the rumor, sell the fact\", \"Focus on other overriding factors\", \"Data component was mixed\").\n    * Assess how the current fundamental context aligns or conflicts with any dominant technical picture.\n\n6.  **Specific Risks:**\n    * Comment on any visible credit market stress indications or potential monetary surprises that could impact the pair.\n\n\nHere's the news today:\nTime Now: {{ $now.setZone('gmt') }}\nNews count:{{ $json.news_count }}\n{{ $json.markdown }}\n\n-------------------------------------------------\nIntraday Trade Plan Setup:\nFormulate precise **Intraday Trading**'s entry signals, recommend specific entry zones, define stop-loss (SL) levels with clear logic, and propose take-profit target BASED on multiple dimensions analysis in *The Multi-Scalar Coherence Protocol*. Here, the goal is precise entry for CURRENT INTRADAY TRADING.This requires extremely high visual clarity to interpret the microscopic details of price action.\n\nDetermine the order type based on the Current Market Price relative to the Ideal Entry Price:\nYou can:\n1)EXECUTE MARKET ORDER IF:\n\nThe Trade plan requirements are met (setup is confirmed).\n\nAND the Current Market Price is close enough to the entry point, and Risk-to-Reward ratio is still valid.\n\nReasoning: The move is happening, but the price hasn't \"run away\" yet. Secure the position immediately.\n\n2)PLACE LIMIT/STOP ORDER IF:\n\nAll trade plan requirements are met, but the CMP has moved too far, making the Stop Loss too wide and ruining the Risk-to-Reward ratio.\n\n3)Do nothing, remain flat IF ALL analysis is opposite of trade action.\n4)adjust order's settings.\n5)You may have additional orders for current pair if the pair's previous order's setting allign with execution plan, or optimize the current pair's existing order's setting to MAX win rate and PROFIT TAKING, its actually depend on you , you have the free to use your expertise to Flexibly apply.\n......\n\n\nINTRADAY TRADE PLAN FORMULATION:\n1.Find the INTRADAY entry point: \n-**Use refined Order Block (OB) or Fair Value Gap (FVG) for entry.**\nEnter on a retracement to the OB or FVG instead of chasing the price.\n\nOrder Blocks (OBs) for Refined Entries:\nOrder Blocks are areas where Smart Money has previously accumulated positions. Instead of entering at random levels, traders enter at refined OBs on lower timeframes for better accuracy.\n\nFair Value Gaps (FVGs) for Precision:\nFVGs are gaps in price action caused by institutional orders. These zones act as magnets where price retraces before continuing. Using a Lower Timeframe's FVG inside a higher timeframe OB provides an optimal entry.\n\n**Avoiding False Breakouts\nA breakout that appears strong on a higher timeframe might be a liquidity grab designed to trap traders. By watching lower timeframes can differentiate between a real breakout and a fake move designed to trick retail traders.\n\n-Identifying Market Exhaustion: If a currency pair has already moved 1.5times to 2times its average daily ATR, it is likely exhausted, or signalling potential for a reversal.\n\n-Breakout Confirmation: During low-volatility periods (low ATR), traders can set up breakout strategies, as a sudden rise in ATR often precedes significant price movements. \n-Avoids noise, protects pattern invalidation\n\n-**you may analysis according to your own method and others technical judgements.**\n\n2. Precise Trade Parameters in INTRADAY(per Setup)\nFor Each Valid Setup:\n-Direction: Long or Short\n-Entry Zone: Price or price range (e.g., 1.0720–1.0723)\n-Entry Condition/confirmed pattern: (e.g., “15M candle closed above 1.0720”, or “waiting bullish engulfing rejection at trendline on pullback”)\n\nStop-Loss (SL):\n### [MANDATORY RULE: STRUCTURE + ATR BUFFER STOP-LOSS SETTING]\nAs an elite intraday trading strategist, you MUST calculate the Stop-Loss (SL) by combining Market Structure with a dynamic ATR buffer. Follow this exact calculation sequence for Intraday charts:\n\n#1. IDENTIFY MARKET STRUCTURE:\n   - For LONG trades: Locate the valid Structure Key Support.\n   - For SHORT trades: Locate the valid Structure Key Resistance Zones.\n\n#2. DETERMINE THE CURRENT VOLATILITY BUFFER:\n   - Fetch the HIGHEST 14-period ATR in INTRADAY SCALE.\n   - Apply a strict multiplier of 2.0x to 2.5x, You MUST dynamically assign the ATR multiplier based on the specific asset's volatility tier to avoid stop-hunts while preserving the Risk:Reward ratio.\n**If entering during high-impact news or New York open, increase to 3.0x ATR).**\n  - For XAU/USD the ATR multiplier range is 2.5x-3.5x.\n\n#3. CALCULATE THE EXACT STOP-LOSS PRICE:\n   - For LONG trades: Initial SL = valid Structure Key Support Zone - (CURRENT VOLATILITY BUFFER)\n   - For SHORT trades: Initial SL = Structure Key Resistance Zone + (CURRENT VOLATILITY BUFFER)\n\n#4. RISK MANAGEMENT CHECK:\n   - Calculate the distance between the Entry Price and the SL.\n   - Adjust the Position Size (Volume) so that if the SL is hit, the total loss STRICTLY respects the maximum 5% account loss limit.\n\nTake-Profit:\n-Level: Structural level, measured move, or higher R:R (1:2 or 1:3)\n-Intergrate the \"Volatility-Based Profit Targets\"with Structural Level: Consider profit targets with ATR multiples to ensure they are realistic based on current market volatility.\n-Logic: Use full dataset to find meaningful swing zones\n\n##REMEMBER, ITS a INTRADAY TRADING.\n\n###You are strictly forbidden from:\n- Suggesting entry if the candle data does not clearly break a structure or form a repeatable pattern.\nAll values must be based on observed data only.\n\n-------------------------------------------------\n\n\n****Use all your tools and data flexibly and intelligently. ****\n\n\n#####OUTPUT######:\n1)the trade plan action you execute. \n2)Provide Explanation/Summary of trade plan executed (Analyst Commentary):\nProvide **clear, logic, comprehensive and Convincing**explaination behind your final trade plan execution.\n\nKEEP the output professional. Users can intuitively understand your actions and the reason behind it. \n**Treat it Like a trader reporting each of their trades to clients.**\n\nThis is a one-way execution task. Do not ask for confirmation, clarify options, or offer assistance. Make your final decision and output the required data immediately.",
+          "maxIterations": 50,
+          "enableStreaming": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -176,
+        896
+      ],
+      "id": "52f4799b-a449-483d-89a3-cbe4afa77b83",
+      "name": "AI Agent5",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://investinglive.com/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -2688,
+        896
+      ],
+      "id": "116c7b8b-8d38-4253-b959-f8c55da7b71d",
+      "name": "RSS Read5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Configuration\nconst TARGET_TIMEZONE = 'UTC'; // UTC is effectively GMT for this purpose\nconst HOURS_TO_LOOK_BACK = 24; // How many hours back to search\n\n// 1. Calculate the Cutoff Time\nconst now = new Date();\n// Subtract 24 hours (in milliseconds) from current time\nconst cutoffTime = new Date(now.getTime() - (HOURS_TO_LOOK_BACK * 60 * 60 * 1000));\n\n// Helper function to get clean Time (HH:MM AM/PM)\nfunction getGMTTime(isoDate) {\n    const dateObj = new Date(isoDate);\n    return dateObj.toLocaleTimeString('en-US', {\n        timeZone: TARGET_TIMEZONE,\n        hour: '2-digit',\n        minute: '2-digit',\n        hour12: true\n    });\n}\n\n// Helper function to get Date (Month/Day) for display context\nfunction getGMTDateDisplay(isoDate) {\n    const dateObj = new Date(isoDate);\n    return dateObj.toLocaleDateString('en-US', {\n        timeZone: TARGET_TIMEZONE,\n        month: 'short',\n        day: 'numeric'\n    });\n}\n\n// 2. Filter & Map Data\nconst filteredNews = $input.all()\n    .map(item => item.json) // Access the JSON data\n    .filter(item => {\n        // Safety check if date exists\n        if (!item.isoDate) return false;\n        \n        // Create a date object from the RSS item\n        const itemDate = new Date(item.isoDate);\n        \n        // Compare timestamps: Keep if itemDate is NEWER (greater) than cutoffTime\n        return itemDate >= cutoffTime;\n    })\n    .map(item => {\n        // Clean up the description\n        let cleanDesc = (item.contentSnippet || item.description || \"\")\n            .replace(/\\s+/g, ' ') \n            .replace(/<[^>]*>?/gm, '') // Optional: strip HTML tags if present\n            .trim();\n\n        return {\n            title: item.title,\n            dateRaw: item.isoDate,\n            // We add the Date to the display now, since \"Last 24h\" spans two days\n            dateDisplay: `${getGMTDateDisplay(item.isoDate)} ${getGMTTime(item.isoDate)}`, \n            description: cleanDesc\n        };\n    });\n\n// 3. Construct LLM-Friendly Markdown\nlet markdownOutput = \"\";\n\nif (filteredNews.length === 0) {\n    markdownOutput = `No news found in the last ${HOURS_TO_LOOK_BACK} hours.`;\n} else {\n    markdownOutput = `## News Summary (Last ${HOURS_TO_LOOK_BACK} Hours)\\n\\n`;\n    \n    // Sort by date (Newest first)\n    filteredNews.sort((a, b) => new Date(b.dateRaw) - new Date(a.dateRaw));\n\n    filteredNews.forEach((news, index) => {\n        markdownOutput += `### ${index + 1}. ${news.title}\\n`;\n        markdownOutput += `**Time:** ${news.dateDisplay} (${TARGET_TIMEZONE})\\n`;\n        markdownOutput += `**Summary:** ${news.description}\\n`;\n        markdownOutput += `\\n---\\n\\n`; \n    });\n}\n\n// 4. Return Data\nreturn [{\n    json: {\n        news_count: filteredNews.length,\n        time_window_start: cutoffTime.toISOString(),\n        markdown: markdownOutput\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2464,
+        896
+      ],
+      "id": "b5914d20-30fa-4569-87c7-110dcd31d49b",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "amount": 70
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2240,
+        896
+      ],
+      "id": "e3c0ba40-3cf6-4bc9-9199-e5a28917c37d",
+      "name": "Wait5",
+      "webhookId": "c9551452-9ad1-4613-9329-e18062e9fcfe",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "6743967574",
+        "text": "={{ $('Start').first().json.Pair_firstItem }} \nError Message:\n{{ $json.error }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2032,
+        800
+      ],
+      "id": "8e643c0b-5f05-47ba-820e-26ff26cc6121",
+      "name": "Send a text message5",
+      "webhookId": "f8935cef-9ec9-435d-b3cf-e997a1b5ee1e",
+      "credentials": {
+        "telegramApi": {
+          "id": "mAarKun1UqH1pPcs",
+          "name": "caishenyeee"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "Pair_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "Pair_replace_firstItem",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "2380bcc8-0289-47de-8f92-9b5914c233db",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -2912,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Here's the news today:\nTime Now: {{ $now.setZone('gmt') }}\nNews count:{{ $json.news_count }}\n{{ $json.markdown }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=# ROLE & EXPERTISE:\nYou are an Elite Institutional Quant-Trader and Macro-Economic Analyst. You possess deep expertise in Forex Market Microstructure, Central Bank Monetary Policy, and Global Macro-economics.\n\n# KNOWLEDGE BASE & COGNITIVE AWARENESS:\nTo prevent cognitive blind spots, you must rigorously apply the following knowledge when determining the optimal trade times:\n1. **Timezone & Session Dynamics:** Master GMT and DST conversions. Recognize the high-liquidity London-NY overlap and the exact closing times of European equities/markets.\n2. **Market Digestion Principle:** Understand that a \"Perfected Data Environment\" only occurs *after* the market has digested major news. Add a mandatory 15-30 minute buffer after Tier-1 data releases (e.g., NFP, CPI) before signaling a safe trade time to avoid extreme spread widening and whipsaw volatility.\n3. **Multi-Phase Events:** For Central Bank events (FOMC, ECB, BoE), recognize that the \"Rate Announcement\" is only Phase 1. Phase 2 is the \"Press Conference\" which often occurs 30-45 minutes later. The environment is NOT perfected until the Press Conference Q&A is well underway or concluded.\n4. **Indicator Hierarchy:** Differentiate between Tier 1 (Market-Makers: CPI, NFP, PCE, Central Bank Rates) and Tier 2/3. Do not halt trading for low-impact yellow events, but strictly quarantine time around red/high-impact events for the specific session's currencies (EUR, GBP, USD).\n5. **Black Swan Recognition:** Continuously scan the news feed for sudden geopolitical escalations or emergency central bank interventions. Treat these as absolute invalidations of regular technical trading environments.\n\n#TASK:\nI am now using AI Agents to make intraday trades in various forex pairs. \nThe AI Agents will start to analyze and make trade decision following the tradeplan in intraday scale.\n\nRemember, its INTRADAY TRADE. \n\nThe pairs are mainly focus on:\n1)Euro/London session\n2)New York session. \n\nIn my trading automation, ALL EURO/London Session's trades will be cleared before US Session Start, vice versa for US Session's trades per day.\n\nThe BEST SCENARIO that AI Agents start step in is when ALL the valuable news/metrics were annouced in INTRADAY scale. \n\nYou will have input of:\n-the latest 24hours news from :https://investinglive.com/feed/\n-a MCP tools: ForexFactory, which is the acess to the economics celender.\n\n*****I want you to give a BEST TIME for my Trading AI AGENT to: \n-STEP IN to executes analysis and tradeplan for EACH MARKET session.\n-STEP OUT in perfect timing for Current intraday trading.*****\n\n\nPlease review and analysis all the news and importance economics events before decide/allow INTRADAY TRADE TIME in dedicated market session.\n\nWhat i DONT want: \n-AI Agents trade in the blindness of important inputs. (eg: trade ahead of NFP,CPI,Umenployment, nation's Fed speaking, nation's president's press confereces......)\n-AI Agents failed to step up and being sweep out by news/metrics volitary.\n-AI Agents trade in BAD intraday environment for market-session execution.\n\nI want AI Agent trade in a PERFECTED DATA enviroment. It can start to analysis the pair after **High-weight data** (if availablee in economic calender) relevent to the session:\n-needed economics metrics announced.\n-every IMPORTANT scheduled news conferences's content has been on news.\n\nYou must aware of high-LEVEL,high-GRADE events and importants event so you can distinguish the valuable event and filter out the low-impact event so you can schefule the BEST TRADE TIME WINDOW in dedicated market session. This required you to act as WALL-STREET level forex trader, knowing all the professional knowledge of trading, marco news and monetary impact. \n\n**ALL TIME FORMAT is in GMT FORMAT.**\nSO please output the best trade timing's STEP IN and STEP OUT for every market session i am currently trading now in INTRADAY TRADING WAY in ****GMT****.\n\nImportant: IF YOU decide to No trade window approved for a dedicated market session, just give empty string in start_time and end_time parameters..\n\nOUTPUT: \nMARKET SESSION: \n-time in ISO 8601/RFC 3339 format(GMT).\n-time out ISO 8601/RFC 3339 format(GMT).\n-reason/summary."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1968,
+        464
+      ],
+      "id": "82d46b60-9682-4e5d-84b3-aef0107f83cd",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "http://127.0.0.1:8081/sse",
+        "serverTransport": "sse",
+        "include": "selected",
+        "includeTools": [
+          "ffcal_get_calendar_events"
+        ],
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.2,
+      "position": [
+        -1888,
+        688
+      ],
+      "id": "682b2a58-95d2-4f4d-9174-4ac63acd3dde",
+      "name": "ForexFactory MCP"
+    },
+    {
+      "parameters": {
+        "url": "https://investinglive.com/feed/",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -2464,
+        464
+      ],
+      "id": "8bcc88c5-23a7-484e-a2ac-2f2258da2187",
+      "name": "RSS Read"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Configuration\nconst TARGET_TIMEZONE = 'UTC'; // UTC is effectively GMT for this purpose\nconst HOURS_TO_LOOK_BACK = 24; // How many hours back to search\n\n// 1. Calculate the Cutoff Time\nconst now = new Date();\n// Subtract 24 hours (in milliseconds) from current time\nconst cutoffTime = new Date(now.getTime() - (HOURS_TO_LOOK_BACK * 60 * 60 * 1000));\n\n// Helper function to get clean Time (HH:MM AM/PM)\nfunction getGMTTime(isoDate) {\n    const dateObj = new Date(isoDate);\n    return dateObj.toLocaleTimeString('en-US', {\n        timeZone: TARGET_TIMEZONE,\n        hour: '2-digit',\n        minute: '2-digit',\n        hour12: true\n    });\n}\n\n// Helper function to get Date (Month/Day) for display context\nfunction getGMTDateDisplay(isoDate) {\n    const dateObj = new Date(isoDate);\n    return dateObj.toLocaleDateString('en-US', {\n        timeZone: TARGET_TIMEZONE,\n        month: 'short',\n        day: 'numeric'\n    });\n}\n\n// 2. Filter & Map Data\nconst filteredNews = $input.all()\n    .map(item => item.json) // Access the JSON data\n    .filter(item => {\n        // Safety check if date exists\n        if (!item.isoDate) return false;\n        \n        // Create a date object from the RSS item\n        const itemDate = new Date(item.isoDate);\n        \n        // Compare timestamps: Keep if itemDate is NEWER (greater) than cutoffTime\n        return itemDate >= cutoffTime;\n    })\n    .map(item => {\n        // Clean up the description\n        let cleanDesc = (item.contentSnippet || item.description || \"\")\n            .replace(/\\s+/g, ' ') \n            .replace(/<[^>]*>?/gm, '') // Optional: strip HTML tags if present\n            .trim();\n\n        return {\n            title: item.title,\n            dateRaw: item.isoDate,\n            // We add the Date to the display now, since \"Last 24h\" spans two days\n            dateDisplay: `${getGMTDateDisplay(item.isoDate)} ${getGMTTime(item.isoDate)}`, \n            description: cleanDesc\n        };\n    });\n\n// 3. Construct LLM-Friendly Markdown\nlet markdownOutput = \"\";\n\nif (filteredNews.length === 0) {\n    markdownOutput = `No news found in the last ${HOURS_TO_LOOK_BACK} hours.`;\n} else {\n    markdownOutput = `## News Summary (Last ${HOURS_TO_LOOK_BACK} Hours)\\n\\n`;\n    \n    // Sort by date (Newest first)\n    filteredNews.sort((a, b) => new Date(b.dateRaw) - new Date(a.dateRaw));\n\n    filteredNews.forEach((news, index) => {\n        markdownOutput += `### ${index + 1}. ${news.title}\\n`;\n        markdownOutput += `**Time:** ${news.dateDisplay} (${TARGET_TIMEZONE})\\n`;\n        markdownOutput += `**Summary:** ${news.description}\\n`;\n        markdownOutput += `\\n---\\n\\n`; \n    });\n}\n\n// 4. Return Data\nreturn [{\n    json: {\n        news_count: filteredNews.length,\n        time_window_start: cutoffTime.toISOString(),\n        markdown: markdownOutput\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        464
+      ],
+      "id": "2f7245a2-169e-496e-bbde-028dfe2ba5c5",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.4",
+          "mode": "list",
+          "cachedResultName": "gpt-5.4"
+        },
+        "builtInTools": {},
+        "options": {
+          "reasoningEffort": "medium",
+          "timeout": "={{ 6000000 }}",
+          "maxRetries": 3,
+          "serviceTier": "flex"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2016,
+        688
+      ],
+      "id": "3475e3dc-7980-4a95-99db-1b9233435e2d",
+      "name": "OpenAI Chat Model",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "credentials": {
+        "openAiApi": {
+          "id": "33xELAtI2K8uk0XR",
+          "name": "openai tao"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2912,
+        464
+      ],
+      "id": "3d29d1de-4587-4a72-98cf-25bdc4ea90b2",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"sessions\": {\n      \"type\": \"array\",\n      \"description\": \"A list of trading sessions\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"session_name\": {\n            \"type\": \"string\",\n            \"description\": \"Name of the session, e.g., 'Euro/London' or 'New York'\"\n          },\n          \"start_time\": {\n            \"type\": \"string\",\n            \"description\": \"Start time in ISO 8601/RFC 3339 format\"\n          },\n          \"end_time\": {\n            \"type\": \"string\",\n            \"description\": \"Step Out time in ISO 8601/RFC 3339 format\"\n          },\n          \"Reason/Summary\": {\n            \"type\": \"string\",\n            \"description\": \"Logic of the time selected\"\n          }\n        },\n        \"required\": [\"session_name\", \"start_time\", \"end_time\", \"Reason/Summary\"]\n      }\n    }\n  },\n  \"required\": [\"sessions\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1760,
+        688
+      ],
+      "id": "061e290e-81ee-42a5-9ab0-da35d7ba422c",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "chatId": "6743967574",
+        "text": "={{ $json.output.sessions[0].session_name }}:\nStart:{{ $json.output.sessions[0].start_time }}\nEnd:{{ $json.output.sessions[0].end_time }}\nReason:{{ $json.output.sessions[0]['Reason/Summary'] }}\n\n\n{{ $json.output.sessions[1].session_name }}:\nStart:{{ $json.output.sessions[1].start_time }}\nEnd:{{ $json.output.sessions[1].end_time }}\nReason:{{ $json.output.sessions[1]['Reason/Summary'] }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1552,
+        464
+      ],
+      "id": "4147b55f-f45b-4336-b382-5084ba8f4d36",
+      "name": "Send a text message",
+      "webhookId": "f8935cef-9ec9-435d-b3cf-e997a1b5ee1e",
+      "credentials": {
+        "telegramApi": {
+          "id": "mAarKun1UqH1pPcs",
+          "name": "caishenyeee"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d9c4a378-a8cc-44bf-8508-6d434683c004",
+              "leftValue": "={{ $json['Day of week'] }}",
+              "rightValue": "=Monday|Tuesday|Wednesday|Thursday|Friday",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -2688,
+        464
+      ],
+      "id": "b4794c73-c33c-441f-b0da-b169ce30c6ba",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "caeb2cf9ff43c2b9aed81fa3a4ded2a946768ba33e3bc87ae76d8777c106ac54@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "chaishenye END Trade Time"
+        },
+        "start": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[0].end_time).toISO() }}",
+        "end": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[0].end_time).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "={{ $('AI Agent').item.json.output.sessions[0].session_name }} Session End Trade Time"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -1024,
+        368
+      ],
+      "id": "6c84be4b-3223-4f30-af8b-76c71fe9d6c8",
+      "name": "EUR/LONDON END Time",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "caeb2cf9ff43c2b9aed81fa3a4ded2a946768ba33e3bc87ae76d8777c106ac54@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "chaishenye END Trade Time"
+        },
+        "start": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[1].end_time).toISO() }}",
+        "end": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[1].end_time).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "={{ $('AI Agent').item.json.output.sessions[1].session_name }} Session END Trade Time"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -1024,
+        560
+      ],
+      "id": "d1f09cd3-d849-4429-9099-6ed6b95261f7",
+      "name": "NEWYORK END Time",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "start": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[0].start_time).toISO() }}",
+        "end": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[0].start_time).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "={{ $('AI Agent').item.json.output.sessions[0].session_name }} Session Start Trade Time"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -1296,
+        368
+      ],
+      "id": "68c64f70-1493-4156-826f-a53a122edf0e",
+      "name": "EUR/LONDON Start Time",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "7f984d6e773edf544e15ae16445ece081fe99b6e56366daeb2a15bf8dd6bc15f@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "caishenye Trading Timetable"
+        },
+        "start": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[1].start_time).toISO() }}",
+        "end": "={{ DateTime.fromISO($('AI Agent').item.json.output.sessions[1].start_time).plus({ hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "summary": "={{ $('AI Agent').item.json.output.sessions[1].session_name }} Session Start Trade Time"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -1296,
+        560
+      ],
+      "id": "fe7c54c9-85fe-4dc4-a050-b30e9d220b3a",
+      "name": "NEWYORK Start Time",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "VujzRMoBkO2rPUT5",
+          "name": "tao54"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.4",
+          "mode": "list",
+          "cachedResultName": "gpt-5.4"
+        },
+        "builtInTools": {
+          "codeInterpreter": true
+        },
+        "options": {
+          "reasoningEffort": "=xhigh",
+          "timeout": "={{ 6000000 }}",
+          "maxRetries": 1,
+          "promptCacheKey": "mosaladsiuuu",
+          "serviceTier": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1200,
+        976
+      ],
+      "id": "c44f0e60-63dc-4445-957f-531f2a7cc961",
+      "name": "OpenAI Chat Model11",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "33xELAtI2K8uk0XR",
+          "name": "openai tao"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {
+    "Start": [
+      {
+        "json": {
+          "Pair_firstItem": "EUR/GBP",
+          "Pair_replace_firstItem": null
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "Pair_firstItem": "EUR/GBP",
+          "Pair_replace_firstItem": null
+        },
+        "pairedItem": {
+          "item": 1
+        }
+      }
+    ],
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2026-04-09T04:00:28.183+00:00",
+          "Readable date": "April 9th 2026, 4:00:28 am",
+          "Readable time": "4:00:28 am",
+          "Day of week": "Thursday",
+          "Year": "2026",
+          "Month": "April",
+          "Day of month": "09",
+          "Hour": "04",
+          "Minute": "00",
+          "Second": "28",
+          "Timezone": "Etc/GMT (UTC+00:00)"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "AI Agent5": {
+      "main": [
+        [
+          {
+            "node": "Update row(s)5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_account_info5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_history_deals5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_history_orders5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_candles_latest5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_candles_date5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_symbol_info_{symbol_name}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_price_{symbol_name}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_price5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_symbols5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_market_symbols_filter5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_order_pending5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "post_order_pending5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_order_pending5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_order_pending_symbol_{symbol}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_order_pending_symbol_{symbol}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_order_pending_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "put_order_pending_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_order_pending_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "post_order_market5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_positions5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_positions5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_positions_symbol_{symbol}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_positions_symbol_{symbol}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_positions_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "put_positions_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_positions_{id}5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_positions_profitable5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_positions_losing5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "technical indicators5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read5": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Wait5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ForexFactory MCP5": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model10": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File5": {
+      "main": [
+        [
+          {
+            "node": "Send a document5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown5": {
+      "main": [
+        [
+          {
+            "node": "Convert to File5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row(s)5": {
+      "main": [
+        [
+          {
+            "node": "Markdown5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait5": {
+      "main": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "RSS Read5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ForexFactory MCP": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "EUR/LONDON Start Time",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "NEWYORK Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EUR/LONDON Start Time": {
+      "main": [
+        [
+          {
+            "node": "EUR/LONDON END Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NEWYORK Start Time": {
+      "main": [
+        [
+          {
+            "node": "NEWYORK END Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model11": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent5",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Etc/GMT",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "30c4cc58-7e74-4497-81ed-46fc276bf5db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "45a8aea5f36b87d88eaa3a401762fe22521df3adebf48d50f59470f1d4a792f9"
+  },
+  "id": "42qYNTFEJjrEg8VH",
+  "tags": []
+}

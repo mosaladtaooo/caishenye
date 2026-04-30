@@ -1,0 +1,83 @@
+# BELCORT Harness Engine — Project Manifest
+# This file is the single source of truth for live state.
+# Agents read this first to know where they are in the pipeline.
+
+harness:
+  version: "2.0"           # Increment when harness design changes
+  model: "claude-opus-4-7" # Default model for all subagent dispatches
+  model_tuning_revision: 0    # incremented each time evaluator.md prompt is modified via /harness:tune-evaluator
+  created: ""              # ISO date when harness was initialized
+  # Schema migration note: fields added in a newer version ALWAYS have safe defaults so older
+  # manifests read without modification. If a field is absent, treat it as its documented default
+  # rather than erroring. Breaking schema changes bump harness.version MAJOR and come with a
+  # migration path in CHANGELOG — never silently reshape an existing manifest.
+
+project:
+  name: ""
+  description: ""
+  created: ""
+
+# FR-6 Constitution amendment history. Append-only. Each entry records a
+# /harness:constitution-amend invocation (the high-ceremony path that's the ONLY
+# authorized way to change spec/constitution.md after Planner Pass 1).
+constitution:
+  amendments: []
+  # Schema per entry:
+  #   - date: "<ISO>"
+  #     reason: "<≥50-char reason from /harness:constitution-amend $ARGUMENTS>"
+  #     adr: "ADR-NNN"          # link to progress/decisions.md
+  #     principles_changed: ["§N", "§M"]   # which principles were add/change/remove
+  #     revalidation_summary:
+  #       total_features: N
+  #       compliant: N
+  #       backported: N
+  #       grandfathered: N
+
+config:
+  max_retries: 3              # QA retry limit after Evaluator FAIL
+  max_negotiation_rounds: 3   # Proposal↔review limit before human escalation
+  testing:
+    unit: "vitest"
+    e2e: "playwright"
+  context_strategy: "fresh_subagent"  # fresh_subagent | single_session (Opus 4.6+)
+
+  # Calibration metrics — quantitative signal for Trustworthy Agents Art.2 §calibration.
+  # The orchestrator increments these at appropriate points during the sprint. /harness:audit
+  # surfaces them. When user_interrupts >> agent_checkins, the harness is too silent.
+  # When agent_checkins >> user_interrupts on trivial tasks, it's being overly cautious.
+  calibration_metrics:
+    user_interrupts: 0          # user typed a course-correction mid-phase
+    agent_checkins: 0           # agent paused to ask a clarifying question
+    last_sprint_ratio: ""       # computed at sprint end: "interrupts:checkins — e.g., 2:5"
+
+state:
+  # phase enum:
+  #   pipeline:   planning | analyzing | negotiating | building | evaluating | retrospective | complete
+  #   spec-edit:  amending | clarifying | editing | tuning | constitution-amending
+  # Spec-edit phases are informational as of v2.0 (prose rule in SKILL.md governs;
+  # no mechanical hook enforcement). Subagents are the canonical writers of spec/
+  # files via CLAUDE_SUBAGENT=1 dispatch.
+  phase: "planning"
+  current_feature: ""        # e.g., "001-bookmark-crud"
+  current_task: ""           # e.g., "FR-005" — updated after each TDD cycle for mid-build recovery
+  negotiation_round: 0       # incremented each proposal↔review cycle; max 3 before escalation
+  retry_count: 0
+  last_session: ""           # ISO timestamp of last agent dispatch
+
+features:
+  completed: []              # List of completed feature folder names
+  in_progress: ""            # Currently active feature
+  planned: []                # Upcoming features from roadmap
+
+verification_debt:           # Items flagged but not addressed (from GSD pattern)
+  deferred: []               # [{feature, finding_id, severity, reason}]
+  pending_human: []          # [{feature, finding_id, question}]
+
+tuning_debt:                   # Evaluator calibration health (from 3.1 tuning loop)
+  unreviewed_divergences: 0   # count of tuning-log.md entries not yet analyzed by /harness:tune-evaluator
+  patterns_pending: []         # [{category: "Leniency", count: 4}] — categories with >=3 entries
+
+git:
+  main_branch: "main"
+  merge_strategy: "squash"
+  worktree_prefix: "harness/build/"

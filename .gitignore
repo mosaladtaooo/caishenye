@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Harness build artifacts (worktrees auto-created during sprints)
+.worktrees/
+
+# Personal Claude Code overrides (committed settings.json is fine)
+.claude/settings.local.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+out/
+.next/
+.cache/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
