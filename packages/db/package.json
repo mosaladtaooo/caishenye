@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
     "./client": "./src/client.ts",
-    "./audit": "./src/audit.ts"
+    "./audit": "./src/audit.ts",
+    "./queries/pairs": "./src/queries/pairs.ts"
   },
   "scripts": {
     "tsc": "tsc --noEmit -p tsconfig.json",
