@@ -16,6 +16,7 @@
       "!**/.cache",
       "!**/coverage",
       "!**/migrations/**/*.sql",
+      "!**/migrations/meta",
       "!**/*.json5",
       "!**/financialJuice.svg",
       "!**/财神爷 Agent.json",
