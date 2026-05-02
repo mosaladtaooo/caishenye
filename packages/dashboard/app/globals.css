@@ -1,0 +1,18 @@
+/* 财神爷 dashboard — global styles.
+ *
+ * Tailwind + shadcn/ui design tokens are wired in via the design bundle
+ * (operator-side `design/dashboard-bundle/`). This file is the minimum
+ * scaffold; the impeccable polish pass (D22) will iterate on the visuals.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
