@@ -141,3 +141,58 @@ describe('schedule-dispatcher — dispatchSchedule (fire_api)', () => {
     await expect(dispatchSchedule(SAMPLE_INPUT, 'fire_api', deps)).rejects.toThrow(/fire api 503/);
   });
 });
+
+describe('schedule-dispatcher — FR-021 cap-burn instrumentation', () => {
+  it('records executor_one_off_cap_exempt when strategy=claude_schedule_bash', async () => {
+    const recordCapBurn = vi.fn<NonNullable<ScheduleDispatcherDeps['recordCapBurn']>>(
+      async () => undefined,
+    );
+    const deps: ScheduleDispatcherDeps = {
+      runBash: vi.fn(async () => ({ exitCode: 0, stdout: 'scheduled', stderr: '' })),
+      fireApi: vi.fn(),
+      recordCapBurn,
+    };
+    const result = await dispatchSchedule(SAMPLE_INPUT, 'claude_schedule_bash', deps);
+    expect(result.capBurn).toBe('executor_one_off_cap_exempt');
+    expect(recordCapBurn).toHaveBeenCalledTimes(1);
+    expect(recordCapBurn.mock.calls[0]?.[0]).toBe('executor_one_off_cap_exempt');
+  });
+
+  it('records executor_one_off_cap_counted when strategy=fire_api', async () => {
+    const recordCapBurn = vi.fn<NonNullable<ScheduleDispatcherDeps['recordCapBurn']>>(
+      async () => undefined,
+    );
+    const deps: ScheduleDispatcherDeps = {
+      runBash: vi.fn(),
+      fireApi: vi.fn(async () => ({ ok: true as const, anthropicOneOffId: 'XYZ' })),
+      recordCapBurn,
+    };
+    const result = await dispatchSchedule(SAMPLE_INPUT, 'fire_api', deps);
+    expect(result.capBurn).toBe('executor_one_off_cap_counted');
+    expect(recordCapBurn).toHaveBeenCalledTimes(1);
+    expect(recordCapBurn.mock.calls[0]?.[0]).toBe('executor_one_off_cap_counted');
+  });
+
+  it('does NOT record cap burn when /fire fails (no slot consumed)', async () => {
+    const recordCapBurn = vi.fn<NonNullable<ScheduleDispatcherDeps['recordCapBurn']>>(
+      async () => undefined,
+    );
+    const deps: ScheduleDispatcherDeps = {
+      runBash: vi.fn(),
+      fireApi: vi.fn(async () => ({ ok: false as const, errorMessage: 'fire api 503' })),
+      recordCapBurn,
+    };
+    await expect(dispatchSchedule(SAMPLE_INPUT, 'fire_api', deps)).rejects.toThrow();
+    expect(recordCapBurn).not.toHaveBeenCalled();
+  });
+
+  it('still works when recordCapBurn is not provided (optional)', async () => {
+    const deps: ScheduleDispatcherDeps = {
+      runBash: vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' })),
+      fireApi: vi.fn(),
+      // no recordCapBurn
+    };
+    const result = await dispatchSchedule(SAMPLE_INPUT, 'claude_schedule_bash', deps);
+    expect(result.capBurn).toBe('executor_one_off_cap_exempt');
+  });
+});

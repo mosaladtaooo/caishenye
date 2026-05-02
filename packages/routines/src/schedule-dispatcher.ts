@@ -19,6 +19,20 @@
 
 export type ScheduleStrategy = 'claude_schedule_bash' | 'fire_api';
 
+/**
+ * FR-021 cap accounting: when the strategy selected based on Spike 1
+ * outcome consumes a Max20x cap slot, we record it in cap_usage_local.
+ * Cap-exempt strategy (Spike 1 PASS) writes a 'cap_exempt' row for audit
+ * trail; cap-counted (Spike 1 FAIL/PARTIAL) writes the regular kind.
+ */
+export type CapBurnKind = 'executor_one_off_cap_counted' | 'executor_one_off_cap_exempt';
+
+export function capBurnForStrategy(strategy: ScheduleStrategy): CapBurnKind {
+  return strategy === 'claude_schedule_bash'
+    ? 'executor_one_off_cap_exempt'
+    : 'executor_one_off_cap_counted';
+}
+
 export interface SpikeOutcome {
   verdict: 'PASS' | 'FAIL' | 'PARTIAL' | 'PENDING';
   evidence?: string;
@@ -72,6 +86,8 @@ export type FireApiResult =
 export interface ScheduleDispatcherDeps {
   runBash: (cmd: string) => Promise<BashResult>;
   fireApi: (arg: FireApiInput) => Promise<FireApiResult>;
+  /** FR-021 instrumentation hook — best-effort cap burn record. */
+  recordCapBurn?: (kind: CapBurnKind, ctx: ScheduleDispatchInput) => Promise<void>;
 }
 
 export interface ScheduleDispatchResult {
@@ -79,6 +95,8 @@ export interface ScheduleDispatchResult {
   strategy: ScheduleStrategy;
   /** Set when strategy=fire_api succeeds; null for claude_schedule_bash. */
   anthropicOneOffId: string | null;
+  /** FR-021 visibility — which cap kind this dispatch wrote (if any). */
+  capBurn: CapBurnKind;
 }
 
 /**
@@ -98,6 +116,8 @@ export async function dispatchSchedule(
   strategy: ScheduleStrategy,
   deps: ScheduleDispatcherDeps,
 ): Promise<ScheduleDispatchResult> {
+  const capBurn = capBurnForStrategy(strategy);
+
   if (strategy === 'claude_schedule_bash') {
     const cmd = buildClaudeScheduleCmd(input);
     const result = await deps.runBash(cmd);
@@ -106,10 +126,14 @@ export async function dispatchSchedule(
         `schedule-dispatcher: claude /schedule exited ${result.exitCode}: ${result.stderr || result.stdout}`,
       );
     }
+    if (deps.recordCapBurn) {
+      await safeRecord(deps.recordCapBurn, capBurn, input);
+    }
     return {
       dispatched: true,
       strategy: 'claude_schedule_bash',
       anthropicOneOffId: null,
+      capBurn,
     };
   }
 
@@ -124,11 +148,27 @@ export async function dispatchSchedule(
   if (!fire.ok) {
     throw new Error(`schedule-dispatcher: fire api failed: ${fire.errorMessage}`);
   }
+  if (deps.recordCapBurn) {
+    await safeRecord(deps.recordCapBurn, capBurn, input);
+  }
   return {
     dispatched: true,
     strategy: 'fire_api',
     anthropicOneOffId: fire.anthropicOneOffId,
+    capBurn,
   };
+}
+
+async function safeRecord(
+  fn: (kind: CapBurnKind, ctx: ScheduleDispatchInput) => Promise<void>,
+  kind: CapBurnKind,
+  ctx: ScheduleDispatchInput,
+): Promise<void> {
+  try {
+    await fn(kind, ctx);
+  } catch (e) {
+    process.stderr.write(`[schedule-dispatcher] recordCapBurn failed: ${e}\n`);
+  }
 }
 
 function buildClaudeScheduleCmd(input: ScheduleDispatchInput): string {

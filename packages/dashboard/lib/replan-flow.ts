@@ -29,6 +29,7 @@
  */
 
 import { getTenantDb } from '@caishen/db/client';
+import { insertCapUsageLocal } from '@caishen/db/queries/cap-counter';
 import { capUsage } from '@caishen/db/schema/cap-usage';
 import { pairSchedules } from '@caishen/db/schema/pair-schedules';
 import { routineRuns } from '@caishen/db/schema/routine-runs';
@@ -179,6 +180,17 @@ export async function txBSettleAudit(arg: TxBArg): Promise<void> {
       outputJson: arg.anthropicOneOffId ? { anthropic_one_off_id: arg.anthropicOneOffId } : null,
     })
     .where(eq(routineRuns.id, arg.routineRunId));
+
+  // FR-021 cap-burn instrumentation. The replan /fire consumed a slot on
+  // success — record it. (Failures don't burn — the routine never started.)
+  if (arg.success) {
+    await insertCapUsageLocal(tenantDb, {
+      tenantId: tenantDb.tenantId,
+      at: new Date(),
+      capKind: 'replan_fire',
+      routineRunsId: arg.routineRunId,
+    });
+  }
 }
 
 /**

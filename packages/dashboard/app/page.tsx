@@ -132,8 +132,18 @@ function scheduleList(items: ScheduleEntry[] | null): React.ReactElement {
 function capWidget(cap: CapProgress | null): React.ReactElement {
   // Defensive default when the cap-rollup cron hasn't run today.
   const c = cap ?? computeCapBarTier({ dailyUsed: 0, dailyLimit: 15 });
+  // AC-021-4: tooltip varies by Spike 1 outcome (PASS = exempt → headroom is
+  // higher; FAIL = counted → 15-cap is hard). We surface a static hint per
+  // tier; the live PASS/FAIL state comes from spike-fr-001-outcomes.json
+  // when wired (FR-021 step 5 in session 5).
+  const tooltip =
+    c.tier === 'red'
+      ? 'Daily cap nearly exhausted. Re-plans will refuse without --force.'
+      : c.tier === 'yellow'
+        ? 'Daily cap warning at 12+ slots. Operator overrides still allowed.'
+        : 'Daily cap healthy.';
   return (
-    <div className={`cap-bar cap-bar-${c.tier}`} data-testid="cap-bar">
+    <div className={`cap-bar cap-bar-${c.tier}`} data-testid="cap-bar" title={tooltip}>
       <div className="cap-bar-fill" style={{ width: `${c.percent}%` }} />
       <div className="cap-bar-label">
         <strong>{c.dailyUsed}</strong> / {c.dailyLimit} slots used today
