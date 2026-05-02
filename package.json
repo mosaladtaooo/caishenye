@@ -1,0 +1,35 @@
+{
+  "name": "caishen-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "财神爷 v2 — Code-defined replacement for the n8n forex trading system. Subscription-only billing (no ANTHROPIC_API_KEY). Multi-tenant from day one.",
+  "packageManager": "bun@1.3.11",
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/db",
+    "packages/routines",
+    "packages/channels",
+    "packages/dashboard"
+  ],
+  "scripts": {
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "tsc": "bun --filter '*' tsc",
+    "test": "bun --filter '*' test",
+    "test:run": "bun --filter '*' run test",
+    "audit:no-api-key": "bash scripts/audit-no-api-key.sh",
+    "spike": "bun --filter '@caishen/routines' run spike",
+    "seed": "bun --filter '@caishen/db' run seed",
+    "preserve-mirror-sync": "bash scripts/preserve-mirror-sync.sh",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.4",
+    "lefthook": "1.13.6",
+    "typescript": "5.9.3"
+  }
+}

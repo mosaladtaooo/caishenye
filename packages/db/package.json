@@ -1,0 +1,30 @@
+{
+  "name": "@caishen/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts",
+    "./audit": "./src/audit.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "migrate": "bun run src/migrate.ts",
+    "lint:tenant-id": "bun run src/lint/tenant-id-lint.ts",
+    "seed": "bun run src/seed.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.39.1",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.0",
+    "drizzle-kit": "0.30.2",
+    "vitest": "3.2.4"
+  }
+}

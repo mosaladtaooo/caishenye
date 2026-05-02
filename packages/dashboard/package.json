@@ -1,0 +1,36 @@
+{
+  "name": "@caishen/dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@caishen/db": "workspace:*",
+    "drizzle-orm": "0.39.1",
+    "next": "16.1.0",
+    "next-auth": "5.0.0-beta.25",
+    "postgres": "3.4.5",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "swr": "2.3.0",
+    "react-markdown": "9.0.3",
+    "recharts": "2.15.0",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "@types/node": "20.19.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "msw": "2.7.0",
+    "vitest": "3.2.4"
+  }
+}

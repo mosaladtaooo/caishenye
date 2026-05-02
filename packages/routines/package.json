@@ -1,0 +1,28 @@
+{
+  "name": "@caishen/routines",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "spike": "bun run src/spike/index.ts",
+    "spike:1": "bun run src/spike/ac-001-1-cap-exempt.ts",
+    "spike:2": "bun run src/spike/ac-001-2-duration-and-math.ts",
+    "spike:3": "bun run src/spike/ac-001-3-fire-api.ts",
+    "spike:4": "bun run src/spike/ac-001-4-token-soak.ts",
+    "planner": "bun run src/planner.ts",
+    "executor": "bun run src/executor.ts"
+  },
+  "dependencies": {
+    "@caishen/db": "workspace:*",
+    "drizzle-orm": "0.39.1",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.0",
+    "vitest": "3.2.4"
+  }
+}

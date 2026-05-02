@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./.next",
+    "rootDir": ".",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "jsx": "preserve",
+    "plugins": [{ "name": "next" }],
+    "types": ["node", "react", "react-dom"],
+    "paths": {
+      "@/*": ["./*"],
+      "@caishen/db": ["../db/src"],
+      "@caishen/db/*": ["../db/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", ".next", "dist"]
+}

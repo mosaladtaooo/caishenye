@@ -20,11 +20,19 @@ build/
 out/
 .next/
 .cache/
+*.tsbuildinfo
 
-# Environment / secrets
+# Test output
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Environment / secrets — constitution §1, §10 (NEVER commit real values)
 .env
 .env.local
 .env.*.local
+!.env.example
 
 # OS
 .DS_Store
@@ -35,3 +43,15 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Bun
+bun-debug.log
+
+# Vercel
+.vercel
+
+# Design bundle binary assets (large files; only commit JSON/CSS spec files)
+design/dashboard-bundle/assets/
+
+# Spike report screenshots (large; not part of repo audit trail)
+docs/preserve-screenshots/

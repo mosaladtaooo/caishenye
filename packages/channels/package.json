@@ -1,0 +1,22 @@
+{
+  "name": "@caishen/channels",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "healthcheck": "bun run scripts/healthcheck-handler.ts"
+  },
+  "dependencies": {
+    "@caishen/db": "workspace:*",
+    "drizzle-orm": "0.39.1",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.0",
+    "vitest": "3.2.4"
+  }
+}
