@@ -1,0 +1,20 @@
+# Constitution §2 — preserve trading-IP files MUST stay byte-identical
+# across platforms. No CRLF normalization, no whitespace munging.
+.harness/spec/preserve/*.md          binary
+packages/routines/src/preserve-mirror/*.md  binary
+
+# Lock files — leave as-written (avoid auto CRLF on Windows checkout).
+bun.lock                             text eol=lf
+
+# Bash scripts must be LF on every platform.
+*.sh                                 text eol=lf
+scripts/*.sh                         text eol=lf
+
+# YAML / TOML / config — LF everywhere.
+*.yml                                text eol=lf
+*.yaml                               text eol=lf
+*.toml                               text eol=lf
+
+# Markdown spec docs — LF (constitution §2 prompt files override above).
+.harness/**/*.md                     text eol=lf
+docs/**/*.md                         text eol=lf
