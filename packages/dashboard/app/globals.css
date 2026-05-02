@@ -1,9 +1,58 @@
-/* 财神爷 dashboard — global styles.
+/* 财神爷 — Mission Control design tokens.
  *
- * Tailwind + shadcn/ui design tokens are wired in via the design bundle
- * (operator-side `design/dashboard-bundle/`). This file is the minimum
- * scaffold; the impeccable polish pass (D22) will iterate on the visuals.
+ * Aesthetic: trader's terminal. Dark, dense, monospaced numerics, calm
+ * under pressure. Not a default shadcn template; deliberately opting out
+ * of the white-card dashboard aesthetic.
+ *
+ * Color system: OKLCH-tinted neutrals + three semantic accents (success /
+ * warning / danger). Strategy is "Restrained" per impeccable rules — one
+ * neutral spine carries 90%+ of surfaces; accents render state, not
+ * decoration. No purple gradients. No hero-metric template. No identical
+ * card grids.
+ *
+ * Typography:
+ *   - --font-ui: system-ui sans for prose, headings, labels
+ *   - --font-mono: tabular monospace for prices, P&L, countdowns
+ *
+ * Theme is fixed dark — single-operator sits in front of this for hours;
+ * dark reduces fatigue + matches the "command line over terminal" mental
+ * model.
  */
+
+:root {
+  /* Neutral spine — tinted slightly toward indigo (chroma 0.01) so
+     surfaces don't read as flat charcoal. */
+  --bg: oklch(15% 0.012 260); /* page background */
+  --bg-raised: oklch(20% 0.014 260); /* tables, panels, elevated surface */
+  --bg-input: oklch(22% 0.014 260); /* form controls */
+  --border: oklch(28% 0.014 260); /* subtle separator */
+  --border-strong: oklch(38% 0.014 260); /* focused / hovered */
+  --fg: oklch(94% 0.005 260); /* primary text */
+  --fg-muted: oklch(68% 0.01 260); /* secondary text */
+  --fg-subtle: oklch(50% 0.01 260); /* tertiary, placeholders */
+
+  /* Semantic accents — used for state only (not decoration). */
+  --ok: oklch(72% 0.155 145); /* go-green for healthy */
+  --ok-bg: oklch(28% 0.05 145);
+  --warn: oklch(80% 0.15 75); /* amber for warning */
+  --warn-bg: oklch(30% 0.06 75);
+  --danger: oklch(70% 0.18 25); /* red for hard / cancelled */
+  --danger-bg: oklch(30% 0.07 25);
+  --accent: oklch(75% 0.08 230); /* calm blue for primary action / link */
+
+  /* Type. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono:
+    ui-monospace, "JetBrains Mono", "SFMono-Regular", "Fira Code", "Cascadia Code", "Consolas",
+    "Liberation Mono", monospace;
+
+  /* Layout. */
+  --gutter-page: 2rem;
+  --gutter-section: 1.5rem;
+  --gutter-row: 0.625rem;
+  --radius: 6px;
+  --radius-tight: 4px;
+}
 
 * {
   box-sizing: border-box;
@@ -13,6 +62,480 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: oklch(40% 0.08 230);
+  color: var(--fg);
+}
+
+/* Scrollbar — minimal, terminal-like. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Numerics + monospace primitives. */
+.num,
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings:
+    "tnum" 1,
+    "zero" 1;
+}
+
+.muted {
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+}
+.subtle {
+  color: var(--fg-subtle);
+  font-size: 0.8125rem;
+}
+.error {
+  color: var(--danger);
+}
+.warn {
+  color: var(--warn);
+}
+
+/* Top-bar nav — single chrome strip. */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.625rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  font-size: 0.8125rem;
+}
+.topbar-brand {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+  margin-right: auto;
+}
+.topbar-nav {
+  display: flex;
+  gap: 0.25rem;
+}
+.topbar-nav a {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-tight);
+  color: var(--fg-muted);
+}
+.topbar-nav a:hover {
+  background: var(--bg-input);
+  color: var(--fg);
+  text-decoration: none;
+}
+.topbar-nav a.active {
+  background: var(--bg-input);
+  color: var(--fg);
+}
+
+/* Generic page shell. */
+main {
+  padding: var(--gutter-page);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Page header pattern. */
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: var(--gutter-section);
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.page-head .meta {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+/* Section: a labelled block, not a card. The section pattern replaces
+   identical-card-grids — sections share a border + label, but they're
+   embedded in the page flow, not boxed as separate widgets. */
+.section {
+  border-top: 1px solid var(--border);
+  padding-top: 1.25rem;
+  margin-top: 1.5rem;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.875rem;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.section-head .section-meta {
+  color: var(--fg-subtle);
+  font-size: 0.75rem;
+}
+
+/* Status pill for agent state. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pill::before {
+  content: "";
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill-ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.pill-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.pill-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Stale-state banner. */
+.banner {
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: var(--gutter-section);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+.banner-yellow {
+  border-color: var(--warn);
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+.banner-red {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Cap-progress bar — flat, terminal gauge (not a 3D pill). */
+.cap-bar {
+  position: relative;
+  height: 28px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tight);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.cap-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cap-bar-green .cap-bar-fill {
+  background: var(--ok-bg);
+}
+.cap-bar-yellow .cap-bar-fill {
+  background: var(--warn-bg);
+}
+.cap-bar-red .cap-bar-fill {
+  background: var(--danger-bg);
+}
+.cap-bar-label {
+  position: relative;
+  padding: 0.375rem 0.75rem;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+.cap-bar-green .cap-bar-label {
+  color: var(--ok);
+}
+.cap-bar-yellow .cap-bar-label {
+  color: var(--warn);
+}
+.cap-bar-red .cap-bar-label {
+  color: var(--danger);
+}
+
+/* Schedule list — flat tabular layout, no boxed cards. */
+.kv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr auto;
+  column-gap: 1rem;
+  row-gap: 0.5rem;
+}
+.kv-list > li {
+  display: contents;
+}
+.kv-list .label {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.kv-list .pair {
+  color: var(--fg);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.kv-list .value {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.countdown {
+  font-family: var(--font-mono);
+  text-align: right;
+}
+.countdown-cancelled {
+  color: var(--danger);
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+.countdown-skipped_no_window {
+  color: var(--fg-subtle);
+}
+.countdown-fired {
+  color: var(--ok);
+}
+
+/* Tables — dense, terminal, monospaced numerics. */
+.t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.t-table th,
+.t-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.t-table thead th {
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom-color: var(--border-strong);
+}
+.t-table tbody tr:hover {
+  background: var(--bg-raised);
+}
+.t-table .num,
+.t-table td.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.t-table .pair {
+  font-weight: 600;
+}
+.pnl-pos {
+  color: var(--ok);
+}
+.pnl-neg {
+  color: var(--danger);
+}
+.pnl-zero {
+  color: var(--fg-subtle);
+}
+.status-cancelled {
+  color: var(--danger);
+}
+.status-skipped_no_window {
+  color: var(--fg-subtle);
+}
+.status-fired {
+  color: var(--ok);
+}
+.status-scheduled {
+  color: var(--accent);
+}
+
+/* Form controls — keyboard-first, accessible. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+.field label,
+label.field-label {
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+input,
+select,
+textarea {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  background: var(--bg-input);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tight);
+  padding: 0.5rem 0.75rem;
+  min-height: 36px;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px oklch(75% 0.08 230 / 0.25);
+}
+
+/* Buttons — flat, keyboard-friendly. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.5rem 1rem;
+  min-height: 36px;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background: var(--bg-input);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tight);
+  cursor: pointer;
+  transition:
+    background 120ms ease-out,
+    border-color 120ms ease-out;
+}
+.btn:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-strong);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  color: oklch(15% 0 0);
+  border-color: var(--accent);
+}
+.btn-primary:hover {
+  background: oklch(70% 0.08 230);
+  border-color: oklch(70% 0.08 230);
+}
+.btn-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.btn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Mobile / responsive. Tables collapse to single-column lists at narrow
+   widths; touch targets remain 36px+ via input/btn min-height. */
+@media (max-width: 640px) {
+  main {
+    padding: 1rem;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 0.5rem 1rem;
+  }
+  .topbar-nav {
+    gap: 0;
+    flex-wrap: wrap;
+  }
+  .t-table thead {
+    display: none;
+  }
+  .t-table,
+  .t-table tbody,
+  .t-table tr,
+  .t-table td {
+    display: block;
+    width: 100%;
+  }
+  .t-table tr {
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 0;
+  }
+  .t-table td {
+    border-bottom: none;
+    padding: 0.25rem 0.75rem;
+  }
+  .t-table td::before {
+    content: attr(data-label) ": ";
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 0.5rem;
+  }
 }

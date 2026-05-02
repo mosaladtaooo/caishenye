@@ -1,16 +1,18 @@
 /**
  * Dashboard root — Overview screen (FR-006 AC-006-2 #1).
  *
- * Server component renders the initial data; SWR-on-the-client (mounted by
- * `<OverviewClient />`) polls /api/overview every 5s for live updates +
- * surfaces stale-state banners (yellow >30s, red >60s) per AC-006-3.
+ * Aesthetic: trader's terminal. Sections of a single mission control
+ * panel, not identical card widgets. Monospaced numerics for prices,
+ * countdowns, P&L. SWR-on-the-client polls /api/overview every 5s for
+ * live updates + surfaces stale-state banners (yellow >30s, red >60s)
+ * per AC-006-3.
  *
- * Composition:
- *   - Hero: balance + equity + open-positions (from MT5 via /api/overview)
- *   - Today's schedule with per-row countdowns
- *   - Cap progress bar (FR-021 AC-021-2; tier colour-coded)
- *   - Last Telegram interaction (FR-005 heartbeat readout)
- *   - Recent activity feed (last 10 executor reports)
+ * Composition (top-to-bottom information density):
+ *   1. Page head: agent state pill + GMT date
+ *   2. Stale banner (if any)
+ *   3. Today's schedule with per-row countdowns
+ *   4. Daily cap progress (FR-021 AC-021-2; tier colour-coded)
+ *   5. Recent activity feed (last 8 executor reports)
  */
 
 import {
@@ -43,33 +45,50 @@ export default async function OverviewPage(): Promise<React.ReactElement> {
     safeGet(() => loadReports(8)),
   ]);
 
+  const paused = agent.value?.pausedBool === true;
+
   return (
-    <main className="overview">
-      <header className="overview-hero">
-        <div>
-          <h1>财神爷 — Mission Control</h1>
-          <p className="muted">{today} GMT</p>
-        </div>
-        <AgentStatePill paused={agent.value?.pausedBool === true} />
-      </header>
+    <main>
+      <div className="page-head">
+        <h1>Overview</h1>
+        <span className="meta">
+          {paused ? (
+            <span className="pill pill-warn" data-testid="agent-pill">
+              paused
+            </span>
+          ) : (
+            <span className="pill pill-ok" data-testid="agent-pill">
+              active
+            </span>
+          )}
+        </span>
+      </div>
 
       <OverviewLiveBanner />
 
-      <section className="overview-grid">
-        <Card title="Today's schedule" subtitle={`${schedule.value?.length ?? 0} sessions`}>
-          {scheduleList(schedule.value)}
-        </Card>
-
-        <Card title="Daily cap (Max 20x)" subtitle="">
-          {capWidget(capProgress.value)}
-        </Card>
-
-        <Card title="Recent activity" subtitle="last 8 executor runs">
-          {recentList(reports.value)}
-        </Card>
+      <section className="section">
+        <header className="section-head">
+          <h2>Today schedule</h2>
+          <span className="section-meta">{schedule.value?.length ?? 0} sessions</span>
+        </header>
+        {scheduleList(schedule.value)}
       </section>
 
-      <style>{overviewStyles}</style>
+      <section className="section">
+        <header className="section-head">
+          <h2>Daily cap</h2>
+          <span className="section-meta">Max 20x · 15-slot ceiling</span>
+        </header>
+        {capWidget(capProgress.value)}
+      </section>
+
+      <section className="section">
+        <header className="section-head">
+          <h2>Recent activity</h2>
+          <span className="section-meta">last 8 executor runs</span>
+        </header>
+        {recentList(reports.value)}
+      </section>
     </main>
   );
 }
@@ -104,24 +123,16 @@ async function loadReports(limit: number) {
   return getRecentReports(getTenantDb(1), limit);
 }
 
-function AgentStatePill({ paused }: { paused: boolean }): React.ReactElement {
-  return (
-    <span className={`pill ${paused ? 'pill-warn' : 'pill-ok'}`}>
-      {paused ? 'Paused' : 'Active'}
-    </span>
-  );
-}
-
 function scheduleList(items: ScheduleEntry[] | null): React.ReactElement {
   if (items === null) return <p className="muted">— couldn't load schedule —</p>;
   if (items.length === 0)
-    return <p className="muted">No sessions scheduled for today. Run /replan if unexpected.</p>;
+    return <p className="muted">No sessions scheduled. Run /replan if unexpected.</p>;
   return (
-    <ul className="schedule-list">
+    <ul className="kv-list">
       {items.map((s) => (
         <li key={s.id}>
+          <span className="label">{s.sessionName}</span>
           <span className="pair">{s.pairCode}</span>
-          <span className="muted">{s.sessionName}</span>
           <span className={`countdown countdown-${s.status}`}>{s.countdown}</span>
         </li>
       ))}
@@ -132,10 +143,8 @@ function scheduleList(items: ScheduleEntry[] | null): React.ReactElement {
 function capWidget(cap: CapProgress | null): React.ReactElement {
   // Defensive default when the cap-rollup cron hasn't run today.
   const c = cap ?? computeCapBarTier({ dailyUsed: 0, dailyLimit: 15 });
-  // AC-021-4: tooltip varies by Spike 1 outcome (PASS = exempt → headroom is
-  // higher; FAIL = counted → 15-cap is hard). We surface a static hint per
-  // tier; the live PASS/FAIL state comes from spike-fr-001-outcomes.json
-  // when wired (FR-021 step 5 in session 5).
+  // AC-021-4: tooltip varies by tier; the live PASS/FAIL state from
+  // spike-fr-001-outcomes.json wires in session 5.
   const tooltip =
     c.tier === 'red'
       ? 'Daily cap nearly exhausted. Re-plans will refuse without --force.'
@@ -156,64 +165,14 @@ function recentList(items: Awaited<ReturnType<typeof loadReports>> | null): Reac
   if (items === null) return <p className="muted">— couldn't load recent runs —</p>;
   if (items.length === 0) return <p className="muted">No executor runs yet today.</p>;
   return (
-    <ul className="recent-list">
+    <ul className="kv-list">
       {items.map((r) => (
         <li key={r.id}>
-          <span className="muted">{new Date(r.createdAt).toISOString().slice(11, 16)} GMT</span>
+          <span className="label">{new Date(r.createdAt).toISOString().slice(11, 16)}</span>
           <span className="pair">{r.pair}</span>
-          <span className="action">{r.actionTaken ?? '—'}</span>
+          <span className="value">{r.actionTaken ?? '—'}</span>
         </li>
       ))}
     </ul>
   );
 }
-
-interface CardProps {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}
-
-function Card({ title, subtitle, children }: CardProps): React.ReactElement {
-  return (
-    <article className="card">
-      <header className="card-header">
-        <h2>{title}</h2>
-        <span className="muted">{subtitle}</span>
-      </header>
-      <div className="card-body">{children}</div>
-    </article>
-  );
-}
-
-const overviewStyles = `
-  .overview { padding: 2rem; max-width: 1100px; margin: 0 auto; }
-  .overview-hero { display: flex; justify-content: space-between; align-items: center;
-                   border-bottom: 1px solid #1f2937; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  .overview-hero h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
-  .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-                   gap: 1rem; }
-  .muted { color: #6b7280; font-size: 0.875rem; }
-  .card { background: #0b1220; border: 1px solid #1f2937; border-radius: 10px; padding: 1rem 1.25rem; }
-  .card-header { display: flex; justify-content: space-between; align-items: baseline;
-                 margin-bottom: 0.75rem; }
-  .card-header h2 { margin: 0; font-size: 1rem; font-weight: 600; }
-  .schedule-list, .recent-list { list-style: none; margin: 0; padding: 0;
-                                 display: grid; grid-template-columns: 80px 1fr auto; gap: 0.5rem 1rem;
-                                 font-variant-numeric: tabular-nums; }
-  .schedule-list li, .recent-list li { display: contents; }
-  .schedule-list .pair, .recent-list .pair { font-weight: 600; }
-  .countdown { text-align: right; font-variant-numeric: tabular-nums; }
-  .countdown-cancelled { color: #ef4444; }
-  .countdown-skipped_no_window { color: #6b7280; }
-  .pill { padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.875rem; font-weight: 600; }
-  .pill-ok { background: #064e3b; color: #6ee7b7; }
-  .pill-warn { background: #7c2d12; color: #fdba74; }
-  .cap-bar { position: relative; height: 32px; background: #1f2937; border-radius: 6px; overflow: hidden; }
-  .cap-bar-fill { position: absolute; inset: 0; transition: width 200ms ease; }
-  .cap-bar-green .cap-bar-fill { background: #10b981; }
-  .cap-bar-yellow .cap-bar-fill { background: #f59e0b; }
-  .cap-bar-red .cap-bar-fill { background: #ef4444; }
-  .cap-bar-label { position: relative; padding: 0.5rem 0.75rem; font-size: 0.875rem; color: #f3f4f6; }
-  body { background: #030712; color: #f3f4f6; }
-`;

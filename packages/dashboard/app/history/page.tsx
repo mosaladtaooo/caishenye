@@ -4,9 +4,7 @@
  * Last 50 orders, filterable by date via search params (?from=YYYY-MM-DD &
  * to=YYYY-MM-DD). When `from` is older than AUDIT_HOT_DAYS (default 365),
  * the route delegates to /api/history/archive/[YYYY-MM] which mints a
- * signed Vercel Blob URL (R6 cold-archive transparent fetch). The Blob
- * minter is mocked at the route level until BLOB_READ_WRITE_TOKEN is
- * available; tests assert the route returns a signed URL shape.
+ * signed Vercel Blob URL (R6 cold-archive transparent fetch).
  */
 
 import { getRecentTrades } from '@caishen/db/queries/overview';
@@ -35,17 +33,18 @@ export default async function HistoryPage(props: HistoryPageProps): Promise<Reac
   if (cold && params.from) {
     const yyyymm = params.from.slice(0, 7); // YYYY-MM
     return (
-      <main className="history-page">
-        <h1>History</h1>
+      <main>
+        <div className="page-head">
+          <h1>History · cold archive</h1>
+          <span className="meta">{params.from}</span>
+        </div>
         <p className="muted">
-          Date {params.from} is older than {hotDays} hot-tier days. Cold-archive view:
+          The requested date is older than {hotDays} hot-tier days. The trade history is in
+          cold-archive storage:
         </p>
         <p>
-          <a href={`/api/history/archive/${yyyymm}`} className="archive-link">
-            Open archived month {yyyymm}
-          </a>
+          <a href={`/api/history/archive/${yyyymm}`}>Open archived month {yyyymm}</a>
         </p>
-        <style>{historyStyles}</style>
       </main>
     );
   }
@@ -60,28 +59,35 @@ export default async function HistoryPage(props: HistoryPageProps): Promise<Reac
   }
 
   return (
-    <main className="history-page">
-      <header>
+    <main>
+      <div className="page-head">
         <h1>History</h1>
-        <p className="muted">Last 50 orders</p>
-      </header>
+        <span className="meta">last 50 orders</span>
+      </div>
 
-      <form className="filter" method="get">
-        <label>
-          From
-          <input type="date" name="from" defaultValue={params.from ?? ''} />
-        </label>
-        <label>
-          To
-          <input type="date" name="to" defaultValue={params.to ?? ''} />
-        </label>
-        <button type="submit">Apply</button>
+      {/* Server-component form: useId is N/A here, single instance. */}
+      <form method="get" style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
+        <div className="field">
+          <label htmlFor="history-from">From</label>
+          {/* biome-ignore lint/correctness/useUniqueElementIds: server component, single instance */}
+          <input id="history-from" type="date" name="from" defaultValue={params.from ?? ''} />
+        </div>
+        <div className="field">
+          <label htmlFor="history-to">To</label>
+          {/* biome-ignore lint/correctness/useUniqueElementIds: server component, single instance */}
+          <input id="history-to" type="date" name="to" defaultValue={params.to ?? ''} />
+        </div>
+        <button type="submit" className="btn btn-primary">
+          Apply
+        </button>
       </form>
 
       {loadError ? (
-        <p className="error">Couldn't load history: {loadError}</p>
+        <p className="error" style={{ marginTop: '1rem' }}>
+          Couldn't load history: {loadError}
+        </p>
       ) : (
-        <table className="history-table">
+        <table className="t-table" style={{ marginTop: '1.5rem' }}>
           <thead>
             <tr>
               <th>Opened (GMT)</th>
@@ -89,7 +95,7 @@ export default async function HistoryPage(props: HistoryPageProps): Promise<Reac
               <th>Type</th>
               <th>Vol</th>
               <th>Price</th>
-              <th>P&L</th>
+              <th>P&amp;L</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -103,21 +109,29 @@ export default async function HistoryPage(props: HistoryPageProps): Promise<Reac
             ) : (
               trades.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.openedAt ? new Date(t.openedAt).toISOString().slice(0, 16) : '—'}</td>
-                  <td className="pair">{t.pair}</td>
-                  <td>{t.type}</td>
-                  <td>{t.volume ?? '—'}</td>
-                  <td>{t.price ?? '—'}</td>
-                  <td className={pnlClass(t.pnl)}>{t.pnl ?? '—'}</td>
-                  <td>{t.status}</td>
+                  <td className="num" data-label="Opened">
+                    {t.openedAt ? new Date(t.openedAt).toISOString().slice(0, 16) : '—'}
+                  </td>
+                  <td className="pair" data-label="Pair">
+                    {t.pair}
+                  </td>
+                  <td data-label="Type">{t.type}</td>
+                  <td className="num" data-label="Vol">
+                    {t.volume ?? '—'}
+                  </td>
+                  <td className="num" data-label="Price">
+                    {t.price ?? '—'}
+                  </td>
+                  <td className={`num ${pnlClass(t.pnl)}`} data-label="P&amp;L">
+                    {t.pnl ?? '—'}
+                  </td>
+                  <td data-label="Status">{t.status}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       )}
-
-      <style>{historyStyles}</style>
     </main>
   );
 }
@@ -128,23 +142,3 @@ function pnlClass(pnl: string | null): string {
   if (Number.isNaN(n) || n === 0) return 'pnl-zero';
   return n > 0 ? 'pnl-pos' : 'pnl-neg';
 }
-
-const historyStyles = `
-  .history-page { padding: 2rem; max-width: 1100px; margin: 0 auto; }
-  .filter { display: flex; gap: 1rem; align-items: end; margin: 1rem 0; }
-  .filter label { display: flex; flex-direction: column; font-size: 0.875rem; color: #9ca3af; }
-  .filter input, .filter button { padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #1f2937;
-    background: #0b1220; color: #f3f4f6; }
-  .filter button { background: #1f2937; cursor: pointer; font-weight: 600; }
-  .history-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  .history-table th, .history-table td { padding: 0.5rem 0.75rem; text-align: left;
-    border-bottom: 1px solid #1f2937; }
-  .history-table thead th { color: #9ca3af; font-weight: 500; font-size: 0.875rem; }
-  .pnl-pos { color: #10b981; }
-  .pnl-neg { color: #ef4444; }
-  .pnl-zero { color: #6b7280; }
-  .pair { font-weight: 600; }
-  .muted { color: #6b7280; }
-  .error { color: #ef4444; }
-  .archive-link { color: #6366f1; }
-`;

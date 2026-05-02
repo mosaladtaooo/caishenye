@@ -1,7 +1,7 @@
 /**
  * Per-pair Detail screen (FR-006 AC-006-2 #2).
  *
- * Surfaces the latest executor reports + trades for a single pair, plus
+ * Surfaces the latest executor reports + trades for a single pair plus
  * today's scheduled sessions for it.
  */
 
@@ -44,102 +44,102 @@ export default async function PairDetailPage(props: PairPageProps): Promise<Reac
   }
 
   return (
-    <main className="pair-page">
-      <header>
+    <main>
+      <div className="page-head">
         <h1>
-          <span className="pair">{pair}</span>
+          <span className="mono">{pair}</span>
         </h1>
-      </header>
+        <span className="meta">pair detail · {today}</span>
+      </div>
 
-      {loadError ? <p className="error">Couldn't load pair detail: {loadError}</p> : null}
+      {loadError ? <p className="error">Couldn't load: {loadError}</p> : null}
 
-      <section>
-        <h2>Today's sessions</h2>
+      <section className="section">
+        <header className="section-head">
+          <h2>Today sessions</h2>
+        </header>
         {schedule.length === 0 ? (
           <p className="muted">No sessions scheduled today for {pair}.</p>
         ) : (
-          <ul>
+          <ul className="kv-list">
             {schedule.map((s) => (
               <li key={s.id}>
-                {s.sessionName} — {s.status} ({s.countdown})
+                <span className="label">{s.sessionName}</span>
+                <span className={`status-${s.status}`}>{s.status}</span>
+                <span className={`countdown countdown-${s.status}`}>{s.countdown}</span>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section>
-        <h2>Recent reports</h2>
+      <section className="section">
+        <header className="section-head">
+          <h2>Recent reports</h2>
+          <span className="section-meta">last 30</span>
+        </header>
         {reports.length === 0 ? (
           <p className="muted">No executor reports for {pair} yet.</p>
         ) : (
-          <ul className="reports-list">
+          <ul className="kv-list" style={{ gridTemplateColumns: '11ch 8ch 1fr auto' }}>
             {reports.map((r) => (
               <li key={r.id}>
-                <header>
-                  <strong>{new Date(r.createdAt).toISOString()}</strong> · {r.session} ·{' '}
-                  {r.actionTaken ?? '—'}
-                </header>
-                {r.summaryMd ? (
-                  <p className="summary">{r.summaryMd.slice(0, 320)}</p>
+                <span className="label">{new Date(r.createdAt).toISOString().slice(0, 10)}</span>
+                <span className="label">{new Date(r.createdAt).toISOString().slice(11, 16)}</span>
+                <span>{r.actionTaken ?? '—'}</span>
+                {r.reportMdBlobUrl ? (
+                  <a href={`/api/reports/${r.id}`}>open</a>
                 ) : (
-                  <p className="muted">(no summary)</p>
+                  <span className="subtle">no blob</span>
                 )}
-                {r.reportMdBlobUrl ? <a href={`/api/reports/${r.id}`}>Open full report</a> : null}
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section>
-        <h2>Recent orders</h2>
+      <section className="section">
+        <header className="section-head">
+          <h2>Recent orders</h2>
+          <span className="section-meta">last 30</span>
+        </header>
         {trades.length === 0 ? (
-          <p className="muted">No orders for {pair} in recent history.</p>
+          <p className="muted">No orders for {pair} yet.</p>
         ) : (
-          <table>
+          <table className="t-table">
             <thead>
               <tr>
                 <th>Opened</th>
                 <th>Type</th>
                 <th>Vol</th>
                 <th>Price</th>
-                <th>P&L</th>
+                <th>P&amp;L</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {trades.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.openedAt ? new Date(t.openedAt).toISOString().slice(0, 16) : '—'}</td>
-                  <td>{t.type}</td>
-                  <td>{t.volume ?? '—'}</td>
-                  <td>{t.price ?? '—'}</td>
-                  <td>{t.pnl ?? '—'}</td>
-                  <td>{t.status}</td>
+                  <td className="num" data-label="Opened">
+                    {t.openedAt ? new Date(t.openedAt).toISOString().slice(0, 16) : '—'}
+                  </td>
+                  <td data-label="Type">{t.type}</td>
+                  <td className="num" data-label="Vol">
+                    {t.volume ?? '—'}
+                  </td>
+                  <td className="num" data-label="Price">
+                    {t.price ?? '—'}
+                  </td>
+                  <td className="num" data-label="P&amp;L">
+                    {t.pnl ?? '—'}
+                  </td>
+                  <td data-label="Status">{t.status}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </section>
-
-      <style>{`
-        .pair-page { padding: 2rem; max-width: 900px; margin: 0 auto; }
-        .pair-page h1 { letter-spacing: -0.02em; }
-        .pair { font-weight: 700; }
-        .pair-page section { margin: 2rem 0; }
-        .pair-page section h2 { font-size: 1rem; color: #9ca3af; font-weight: 500; }
-        .reports-list { list-style: none; padding: 0; display: grid; gap: 1rem; }
-        .reports-list li { padding: 1rem; border: 1px solid #1f2937; border-radius: 8px; background: #0b1220; }
-        .reports-list header { font-size: 0.875rem; color: #9ca3af; margin-bottom: 0.5rem; }
-        .summary { font-size: 0.875rem; color: #d1d5db; }
-        table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-        th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #1f2937; }
-        th { color: #9ca3af; font-weight: 500; font-size: 0.875rem; }
-        .muted { color: #6b7280; }
-        .error { color: #ef4444; }
-      `}</style>
     </main>
   );
 }

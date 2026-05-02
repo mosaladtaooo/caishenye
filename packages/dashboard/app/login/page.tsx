@@ -1,21 +1,33 @@
 /**
  * /login — Auth.js v5 + WebAuthn passkey sign-in.
  *
- * The actual sign-in form lives client-side because passkey ceremony
- * requires `navigator.credentials`. This file is the route container; the
- * form component renders after hydration.
+ * Bare terminal-style. The actual passkey ceremony renders client-side
+ * because navigator.credentials.get is required; for the server-rendered
+ * route we present the prompt + a button that the client-component
+ * replaces post-hydration.
  */
 
 export default function LoginPage(): React.ReactElement {
   return (
-    <main style={{ padding: '2rem', maxWidth: '32rem' }}>
-      <h1>Sign in</h1>
-      <p>Tap your device to authenticate with your passkey.</p>
+    <main style={{ maxWidth: '32rem' }}>
+      <div className="page-head">
+        <h1>Sign in</h1>
+        <span className="meta">passkey · webauthn</span>
+      </div>
+      <p className="muted" style={{ marginBottom: '1rem' }}>
+        Tap your device to authenticate.
+      </p>
       <noscript>
-        <p style={{ color: 'red' }}>Passkey sign-in requires JavaScript.</p>
+        <p className="error">Passkey sign-in requires JavaScript.</p>
       </noscript>
-      {/* PasskeySignInForm placeholder — full client component lands in
-          M3 step 18 once the design bundle ships. */}
+      {/* Client passkey form replaces this stub on hydration. */}
+      <button type="button" className="btn btn-primary" disabled>
+        Authenticate with passkey
+      </button>
+      <p className="subtle" style={{ marginTop: '2rem' }}>
+        First-time setup uses /auth/passkey-register with the operator-issued
+        INITIAL_REGISTRATION_TOKEN.
+      </p>
     </main>
   );
 }

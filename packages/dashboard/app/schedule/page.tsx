@@ -1,8 +1,8 @@
 /**
  * Schedule screen (FR-006 AC-006-2 #3 + AC-006-5).
  *
- * Today's per-pair sessions with countdowns + a "Force Re-plan" button that
- * POSTs to /api/overrides/replan via the CSRF-protected client form.
+ * Today's per-pair sessions with countdowns + a "Force Re-plan" button
+ * that POSTs to /api/overrides/replan via the CSRF-protected client form.
  */
 
 import { getAgentState, getTodaySchedule } from '@caishen/db/queries/overview';
@@ -35,18 +35,22 @@ export default async function SchedulePage(): Promise<React.ReactElement> {
   }
 
   return (
-    <main className="schedule-page">
-      <header>
-        <h1>Schedule — {today} GMT</h1>
-        {agent.pausedBool ? (
-          <p className="warn">Agent is paused — schedules will not fire until resumed.</p>
-        ) : null}
-      </header>
+    <main>
+      <div className="page-head">
+        <h1>Schedule</h1>
+        <span className="meta">{today}</span>
+      </div>
+
+      {agent.pausedBool ? (
+        <p className="banner banner-yellow">
+          Agent is paused. Schedules will not fire until /resume + /replan.
+        </p>
+      ) : null}
 
       {loadError ? (
         <p className="error">Couldn't load schedule: {loadError}</p>
       ) : (
-        <table className="schedule-table">
+        <table className="t-table">
           <thead>
             <tr>
               <th>Pair</th>
@@ -61,18 +65,28 @@ export default async function SchedulePage(): Promise<React.ReactElement> {
             {schedule.length === 0 ? (
               <tr>
                 <td colSpan={6} className="muted">
-                  No sessions scheduled for today.
+                  No sessions scheduled.
                 </td>
               </tr>
             ) : (
               schedule.map((s) => (
                 <tr key={s.id}>
-                  <td className="pair">{s.pairCode}</td>
-                  <td>{s.sessionName}</td>
-                  <td>{formatTime(s.startTimeGmt)}</td>
-                  <td>{formatTime(s.endTimeGmt)}</td>
-                  <td className={`status status-${s.status}`}>{s.status}</td>
-                  <td>{s.countdown}</td>
+                  <td className="pair" data-label="Pair">
+                    {s.pairCode}
+                  </td>
+                  <td data-label="Session">{s.sessionName}</td>
+                  <td className="num" data-label="Start">
+                    {formatTime(s.startTimeGmt)}
+                  </td>
+                  <td className="num" data-label="End">
+                    {formatTime(s.endTimeGmt)}
+                  </td>
+                  <td className={`status-${s.status}`} data-label="Status">
+                    {s.status}
+                  </td>
+                  <td className={`countdown countdown-${s.status}`} data-label="Countdown">
+                    {s.countdown}
+                  </td>
                 </tr>
               ))
             )}
@@ -80,26 +94,13 @@ export default async function SchedulePage(): Promise<React.ReactElement> {
         </table>
       )}
 
-      <section className="actions">
+      <section className="section">
+        <header className="section-head">
+          <h2>Override</h2>
+          <span className="section-meta">force a fresh Planner fire (cap-confirm gated)</span>
+        </header>
         <ForceReplanForm />
       </section>
-
-      <style>{`
-        .schedule-page { padding: 2rem; max-width: 1100px; margin: 0 auto; }
-        .schedule-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
-        .schedule-table th, .schedule-table td { padding: 0.5rem 0.75rem; text-align: left;
-          border-bottom: 1px solid #1f2937; font-variant-numeric: tabular-nums; }
-        .schedule-table thead th { color: #9ca3af; font-weight: 500; font-size: 0.875rem; }
-        .pair { font-weight: 600; }
-        .status-cancelled { color: #ef4444; }
-        .status-skipped_no_window { color: #6b7280; }
-        .status-fired { color: #10b981; }
-        .status-scheduled { color: #6366f1; }
-        .warn { color: #fdba74; }
-        .error { color: #ef4444; }
-        .muted { color: #6b7280; }
-        .actions { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #1f2937; }
-      `}</style>
     </main>
   );
 }

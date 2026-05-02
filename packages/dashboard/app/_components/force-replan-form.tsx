@@ -49,22 +49,35 @@ export function ForceReplanForm(): React.ReactElement {
   }
 
   return (
-    <div className="replan-actions">
-      <button type="button" disabled={busy} onClick={() => handleClick(false)}>
+    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={busy}
+        onClick={() => handleClick(false)}
+      >
         Force re-plan
       </button>
-      <button type="button" disabled={busy} onClick={() => handleClick(true)} className="btn-warn">
+      <button
+        type="button"
+        className="btn btn-warn"
+        disabled={busy}
+        onClick={() => handleClick(true)}
+      >
         Force re-plan (low cap)
       </button>
-      {result ? <p className="replan-result">{result}</p> : null}
-      <style>{`
-        .replan-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-        .replan-actions button { padding: 0.5rem 1rem; font-weight: 600; border-radius: 6px;
-          border: 1px solid #1f2937; background: #1f2937; color: #f3f4f6; cursor: pointer; }
-        .replan-actions button:disabled { opacity: 0.5; cursor: progress; }
-        .btn-warn { background: #92400e !important; }
-        .replan-result { width: 100%; color: #9ca3af; font-size: 0.875rem; }
-      `}</style>
+      {result ? (
+        <p
+          style={{
+            width: '100%',
+            color: 'var(--fg-muted)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.8125rem',
+          }}
+        >
+          {result}
+        </p>
+      ) : null}
     </div>
   );
 }
