@@ -71,10 +71,12 @@ declare -a ALLOWLIST_REGEXES=(
   '/tests/lefthook-config\.test\.ts$'
   '/tests/gitleaks-config\.test\.ts$'
   '/tests/ci-workflow\.test\.ts$'
+  '/tests/init-sh\.test\.ts$'
   '/lefthook\.yml$'
   '/\.gitleaks\.toml$'
   '/\.env\.example$'
   '/\.github/workflows/.*\.ya?ml$'
+  '/\.harness/init\.sh$'
   '/财神爷 Agent\.json$'
   '/财神爷 schedule trigger\.json$'
 )
