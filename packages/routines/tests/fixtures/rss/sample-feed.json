@@ -1,0 +1,30 @@
+{
+  "_comment": "Frozen RSS fixture for FR-014 AC-014-2 snapshot testing. Each entry mirrors the n8n RSS-Feed-Read node's output shape (`item.json` per entry: title, isoDate, contentSnippet/description). Times anchored to 2026-05-03T15:00:00Z so the 'within 24h' filter test is deterministic regardless of when the test runs (the news.ts module accepts a `now` injection for this).",
+  "fixtureNow": "2026-05-03T15:00:00Z",
+  "items": [
+    {
+      "title": "Fed minutes signal hawkish lean ahead of June meeting",
+      "isoDate": "2026-05-03T14:30:00Z",
+      "contentSnippet": "Federal Reserve officials emphasized inflation risks at their April meeting, with several members suggesting rates may need to stay higher for longer than markets expect."
+    },
+    {
+      "title": "ECB's Lagarde: progress on inflation insufficient for rate cut",
+      "isoDate": "2026-05-03T11:15:00Z",
+      "contentSnippet": "<p>European Central Bank President Christine Lagarde said today that the bank needs more evidence inflation is sustainably returning to its 2% target before considering rate cuts.</p>"
+    },
+    {
+      "title": "USD/JPY surges past 156 on widening yield gap",
+      "isoDate": "2026-05-03T08:45:00Z",
+      "description": "The yen weakened to a fresh multi-decade low against the dollar as a widening US-Japan yield differential continues to attract carry-trade flows."
+    },
+    {
+      "title": "Stale article from 2 days ago — should be FILTERED OUT",
+      "isoDate": "2026-05-01T10:00:00Z",
+      "contentSnippet": "This entry is older than 24h and must not appear in the rendered output."
+    },
+    {
+      "title": "Article missing isoDate — should be FILTERED OUT",
+      "contentSnippet": "No isoDate field — must not crash the parser AND must not appear in output."
+    }
+  ]
+}
