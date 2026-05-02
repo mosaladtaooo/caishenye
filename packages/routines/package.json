@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./telegram-bot": "./src/telegram-bot.ts",
+    "./planner": "./src/planner.ts",
+    "./executor": "./src/executor.ts"
+  },
   "scripts": {
     "tsc": "tsc --noEmit -p tsconfig.json",
     "test": "vitest",

@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./.next",
-    "rootDir": ".",
+    "rootDir": "..",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "jsx": "preserve",
     "plugins": [{ "name": "next" }],
@@ -10,7 +10,9 @@
     "paths": {
       "@/*": ["./*"],
       "@caishen/db": ["../db/src"],
-      "@caishen/db/*": ["../db/src/*"]
+      "@caishen/db/*": ["../db/src/*"],
+      "@caishen/routines": ["../routines/src"],
+      "@caishen/routines/*": ["../routines/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
