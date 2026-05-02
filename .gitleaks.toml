@@ -1,0 +1,138 @@
+# 财神爷 v2 — gitleaks configuration
+# Constitution §10 — secret scanning. Extends gitleaks default rules with
+# project-specific patterns for the secrets we will handle:
+#   - Anthropic routine bearer tokens (per-routine; ADR-004)
+#   - The forbidden literal `ANTHROPIC_API_KEY` (constitution §1; defense
+#     in depth alongside scripts/audit-no-api-key.sh)
+#   - Telegram bot tokens (FR-019)
+#   - MT5 bearer (FR-009)
+#   - Auth.js secret + CSRF HMAC key (FR-006, R6 in proposal)
+#   - CRON_SECRET (Vercel cron auth)
+#
+# The default gitleaks ruleset already covers AWS, GCP, Azure, GitHub, Slack,
+# Stripe, etc. — we extend rather than replace.
+
+title = "caishen v2 — secret scan rules"
+
+[extend]
+useDefault = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Custom rules — project-specific patterns
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "anthropic-api-key-literal"
+description = "The literal string ANTHROPIC_API_KEY (constitution §1 forbids it anywhere in source)"
+# Defense in depth: scripts/audit-no-api-key.sh is the primary gate but a
+# dedicated gitleaks rule produces a clear finding name + line for any
+# code-review tooling that consumes gitleaks JSON output.
+regex = '''(?i)ANTHROPIC[_-]?API[_-]?KEY'''
+keywords = ["ANTHROPIC_API_KEY", "anthropic_api_key"]
+
+[[rules]]
+id = "anthropic-routine-bearer"
+description = "Anthropic Routines bearer token (per ADR-004) — used for /fire API and /v1/usage"
+# Anthropic-issued bearers begin `sk-ant-` or `sk-anth-` per their docs.
+# Length is variable but typically ≥ 64 chars after the prefix.
+regex = '''(?i)sk[-_]ant[-_a-z]?[a-z0-9]{40,}'''
+keywords = ["sk-ant", "sk_ant"]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot API token (FR-019) — shape is <bot_id>:<35-char hash>"
+# https://core.telegram.org/bots#botfather — token format: 8-10 digits,
+# colon, 35 url-safe-base64 chars.
+regex = '''[0-9]{8,10}:[A-Za-z0-9_-]{35}'''
+keywords = ["telegram", "bot_token", "TELEGRAM_BOT_TOKEN"]
+
+[[rules]]
+id = "mt5-bearer-token"
+description = "MT5 nginx-proxy bearer (FR-009 AC-009-2) — high-entropy random hex/base64"
+# Generic high-entropy detector around an `MT5_BEARER` keyword. The keyword
+# pre-filter keeps this from firing on every random hex string in the repo.
+regex = '''(?i)MT5[_-]?BEARER[_-]?(TOKEN)?\s*[=:]\s*[''"]?([A-Za-z0-9+/=_-]{32,})['"`]?'''
+keywords = ["MT5_BEARER", "mt5_bearer"]
+secretGroup = 2
+
+[[rules]]
+id = "auth-secret"
+description = "Auth.js secret + R6 CSRF HMAC key — must be ≥ 32 bytes, never in repo"
+regex = '''(?i)AUTH[_-]?SECRET\s*[=:]\s*[''"]?([A-Za-z0-9+/=_-]{32,})['"`]?'''
+keywords = ["AUTH_SECRET"]
+secretGroup = 1
+
+[[rules]]
+id = "cron-secret"
+description = "Vercel cron auth header secret"
+regex = '''(?i)CRON[_-]?SECRET\s*[=:]\s*[''"]?([A-Za-z0-9+/=_-]{32,})['"`]?'''
+keywords = ["CRON_SECRET"]
+secretGroup = 1
+
+[[rules]]
+id = "tailscale-auth-key"
+description = "Tailscale auth key (FR-009 AC-009-1) — shape `tskey-auth-...`"
+regex = '''tskey-(auth|api|client)[-_][a-zA-Z0-9-]+CNTRL[-_][a-zA-Z0-9-]+'''
+keywords = ["tskey-auth", "tskey-api"]
+
+[[rules]]
+id = "initial-registration-token"
+description = "INITIAL_REGISTRATION_TOKEN — one-time passkey enrollment secret"
+regex = '''(?i)INITIAL[_-]?REGISTRATION[_-]?TOKEN\s*[=:]\s*[''"]?([A-Za-z0-9+/=_-]{32,})['"`]?'''
+keywords = ["INITIAL_REGISTRATION_TOKEN"]
+secretGroup = 1
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Allowlists — legitimate references that must NOT trigger findings
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[allowlists]]
+description = "Spec files legitimately reference secret-related literals by name (constitution + PRD discuss the principle)"
+paths = [
+  '''\.harness/spec/.*\.md$''',
+  '''\.harness/features/.*\.md$''',
+  '''\.harness/evaluator/.*\.md$''',
+  '''\.harness/data/.*\.json$''',
+  '''\.harness/init\.sh$''',
+  '''\.harness/ROADMAP\.md$''',
+  '''\.harness/progress/.*\.md$''',
+]
+
+[[allowlists]]
+description = "audit-no-api-key.sh has to grep for the literal — its own source contains it"
+paths = [
+  '''scripts/audit-no-api-key\.sh$''',
+  '''\.gitleaks\.toml$''',
+]
+
+[[allowlists]]
+description = "Tests for the audit script include the literal as negative-test fixtures"
+paths = [
+  '''tests/audit-no-api-key\.test\.ts$''',
+  '''tests/.*\.test\.ts$''',
+  '''.*\.test\.ts$''',
+  '''.*\.spec\.ts$''',
+]
+
+[[allowlists]]
+description = ".env.example is committed (placeholders only) and lists env-var NAMES (the ANTHROPIC_API_KEY name itself never appears, but related names do)"
+paths = [
+  '''\.env\.example$''',
+]
+
+[[allowlists]]
+description = "Read-only n8n migration references — preserved verbatim from the n8n export"
+paths = [
+  '''.*Agent\.json$''',
+  '''.*schedule trigger\.json$''',
+]
+
+[[allowlists]]
+description = "Common placeholder values that are obviously not real secrets"
+regexes = [
+  '''(?i)REPLACE[_-]?ME''',
+  '''(?i)<your[-_].*>''',
+  '''(?i)example[-_]?token''',
+  '''(?i)fake[-_]?token''',
+  '''(?i)test[-_]?fixture''',
+]

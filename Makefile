@@ -28,7 +28,7 @@ test: ## Run vitest in watch mode (per-workspace)
 test-run: ## Run vitest once (CI mode)
 	bun run test:run
 
-audit-no-api-key: ## Constitution §1 — verify no ANTHROPIC_API_KEY anywhere
+audit-no-api-key: ## Constitution §1 — verify the forbidden Anthropic API-key literal is absent
 	bash scripts/audit-no-api-key.sh
 
 gitleaks: ## Constitution §10 — secret scan via gitleaks

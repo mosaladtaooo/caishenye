@@ -1,42 +1,50 @@
-# EXAMPLE USAGE:
+# 财神爷 v2 — Pre-commit hook configuration
 #
-#   Refer for explanation to following link:
-#   https://lefthook.dev/configuration/
+# Constitution §1, §10, §17 enforcement at the commit boundary. Every commit
+# in this repo MUST pass:
+#   1. audit-no-api-key.sh   — no `ANTHROPIC_API_KEY` (literal) anywhere
+#   2. biome check           — lint + format (no `any`, no `console.log`,
+#                              no unused vars, recommended rules)
+#   3. gitleaks              — secret scan (bot tokens, MT5 password, bearer)
 #
-# pre-push:
-#   jobs:
-#     - name: packages audit
-#       tags:
-#         - frontend
-#         - security
-#       run: yarn audit
+# CI mirrors these checks (see .github/workflows/ci.yml). If any of the three
+# rejects, the commit/push is blocked.
 #
-#     - name: gems audit
-#       tags:
-#         - backend
-#         - security
-#       run: bundle audit
-#
-# pre-commit:
-#   parallel: true
-#   jobs:
-#     - run: yarn eslint {staged_files}
-#       glob: "*.{js,ts,jsx,tsx}"
-#
-#     - name: rubocop
-#       glob: "*.rb"
-#       exclude:
-#         - config/application.rb
-#         - config/routes.rb
-#       run: bundle exec rubocop --force-exclusion {all_files}
-#
-#     - name: govet
-#       files: git ls-files -m
-#       glob: "*.go"
-#       run: go vet {files}
-#
-#     - script: "hello.js"
-#       runner: node
-#
-#     - script: "hello.go"
-#       runner: go run
+# To install locally: `bun install` (root prepare script runs `lefthook install`).
+# To bypass for a one-off (NEVER ship): `git commit --no-verify` — but every
+# branch push still hits CI.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: audit-no-api-key
+      # Constitution §1 + §13 — the no-API-key gate. Runs on EVERY commit
+      # (not just commits that touch certain files) because the literal could
+      # land via a re-export, a test fixture, or a stray .env paste.
+      run: bash scripts/audit-no-api-key.sh
+      stage_fixed: false
+
+    - name: biome
+      # Constitution §17 — no `any`, no `console.log`, no unused imports.
+      # Runs only on staged JS/TS/JSON files for speed.
+      glob:
+        - "*.ts"
+        - "*.tsx"
+        - "*.js"
+        - "*.jsx"
+        - "*.json"
+        - "*.jsonc"
+      run: bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: false
+
+    - name: gitleaks
+      # Constitution §10 — secret scan. Locally optional if gitleaks isn't
+      # installed (CI enforces); we use `command -v` to skip silently rather
+      # than fail when the binary is missing on a dev laptop.
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --source . --redact --verbose
+        else
+          echo "gitleaks: not installed locally — CI will enforce. Skipping."
+        fi
+      stage_fixed: false
