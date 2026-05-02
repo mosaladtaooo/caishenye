@@ -63,6 +63,14 @@ jobs:
         run: bun run tsc
 
       # ────────────────────────────────────────────────────────────────────
+      # Constitution §4 + §12 — tenant-id AST linter
+      # Every operator-data query must filter by tenant_id; no all-tenants.
+      # The AST linter walks packages/{routines,channels,dashboard}/**/*.ts.
+      # ────────────────────────────────────────────────────────────────────
+      - name: Tenant-id lint (constitution §4 + §12)
+        run: bun run --filter '@caishen/db' lint:tenant-id
+
+      # ────────────────────────────────────────────────────────────────────
       # Constitution §9 — vitest unit + integration
       # ────────────────────────────────────────────────────────────────────
       - name: Vitest (root + workspaces)

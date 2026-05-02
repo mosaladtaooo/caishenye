@@ -1,0 +1,16 @@
+# Raw-SQL allowlist for the tenant-id-lint linter.
+#
+# Constitution §4 + §12: every operator-data query must filter by tenant_id.
+# When a file genuinely needs `db.execute(sql`...`)` (e.g., DDL probe, health
+# check, migration helper), add its repo-relative path here with a comment
+# explaining (a) why raw SQL is required and (b) HOW the query stays
+# tenant-scoped — interpolated tenant_id, no-op-if-missing semantics, etc.
+#
+# Format: one path per line. Suffix-of-absolute-path matching, so either
+# `packages/dashboard/lib/health.ts` or `lib/health.ts` (less specific) works.
+# Lines starting with `#` and blank lines are ignored.
+#
+# Constitutional ceiling: ≤3 entries. Adding a 4th means the architecture is
+# accumulating raw-SQL debt and should be reviewed.
+
+# (no entries yet)

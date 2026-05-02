@@ -43,3 +43,12 @@ pre-commit:
       # the "not installed locally" case gracefully (CI will enforce).
       run: bash scripts/gitleaks-protect.sh
       stage_fixed: false
+
+    - name: tenant-id-lint
+      # Constitution §4 + §12 — every operator-data query must filter by
+      # tenant_id; no all-tenants query. The AST linter walks
+      # packages/{routines,channels,dashboard}/**/*.ts and exits non-zero on
+      # MISSING_TENANT_FILTER or RAW_SQL_NOT_ALLOWLISTED. Runs on EVERY commit
+      # because a query that drops the tenant filter could land in any file.
+      run: bun run --filter '@caishen/db' lint:tenant-id
+      stage_fixed: false
