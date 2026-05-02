@@ -18,7 +18,7 @@
 
 import { getTenantDb } from '@caishen/db/client';
 import { type NewOverrideAction, overrideActions } from '@caishen/db/schema/override-actions';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { mt5Get, mt5Post } from './mt5-server';
 import type {
   ExecuteOverrideDeps,
@@ -120,7 +120,7 @@ export function buildOverrideDeps(arg: BuildOverrideDepsArg): ExecuteOverrideDep
       return returned.id;
     },
     mt5Write: async (): Promise<Mt5WriteResult> => {
-      const after = await dispatchMt5Write(arg.shape);
+      const after = await dispatchMt5Write(arg.shape, arg.tenantId);
       return { ok: true, after };
     },
     updateOverrideRow: async (u: UpdateOverrideRowArg): Promise<void> => {
@@ -139,7 +139,7 @@ export function buildOverrideDeps(arg: BuildOverrideDepsArg): ExecuteOverrideDep
   };
 }
 
-async function dispatchMt5Write(shape: ActionShape): Promise<unknown> {
+async function dispatchMt5Write(shape: ActionShape, tenantId: number): Promise<unknown> {
   switch (shape.type) {
     case 'close_pair':
       return mt5Post('/positions/close-pair', { pair: shape.pair });
@@ -152,13 +152,11 @@ async function dispatchMt5Write(shape: ActionShape): Promise<unknown> {
         tp: shape.tp,
       });
     case 'pause':
-      // Pause has no MT5-side write — it sets agent_state.paused_bool=true
-      // and cancels not-yet-fired one-offs. The verb returns the new state
-      // snapshot; the caller (route handler for /api/overrides/pause)
-      // overlays this with its own dispatcher.
-      return { type: 'pause', ts: new Date().toISOString() };
+      // No MT5-side write — flip agent_state + cancel today's not-yet-fired
+      // one-offs. AC-017-1 + AC-017-3.
+      return doPauseWrite(tenantId);
     case 'resume':
-      return { type: 'resume', ts: new Date().toISOString() };
+      return doResumeWrite(tenantId);
     case 'replan':
       // Replan uses the split-tx flow (R3-followup) — its route handler
       // overrides this verb entirely. Reaching here is a programming error.
@@ -166,4 +164,61 @@ async function dispatchMt5Write(shape: ActionShape): Promise<unknown> {
         'override-bind: replan must use the split-tx flow in /api/overrides/replan/route.ts, not the standard 7-step engine',
       );
   }
+}
+
+async function doPauseWrite(tenantId: number): Promise<unknown> {
+  const tenantDb = getTenantDb(tenantId);
+  const { agentState } = await import('@caishen/db/schema/agent-state');
+  const { pairSchedules } = await import('@caishen/db/schema/pair-schedules');
+  const today = currentDateGmt();
+
+  // Tx: upsert agent_state + cancel pair_schedules.
+  await tenantDb.drizzle.transaction(async (tx) => {
+    // Upsert (tenant_id is PK).
+    await tx
+      .insert(agentState)
+      .values({
+        tenantId,
+        pausedBool: true,
+        pausedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: agentState.tenantId,
+        set: { pausedBool: true, pausedAt: new Date() },
+      });
+    // Cancel all not-yet-fired schedule rows for today (status='scheduled').
+    await tx
+      .update(pairSchedules)
+      .set({ status: 'cancelled' })
+      .where(
+        and(
+          eq(pairSchedules.tenantId, tenantId),
+          eq(pairSchedules.date, today),
+          eq(pairSchedules.status, 'scheduled'),
+        ),
+      );
+  });
+
+  return { paused: true, ts: new Date().toISOString(), cancelledScheduledFor: today };
+}
+
+async function doResumeWrite(tenantId: number): Promise<unknown> {
+  const tenantDb = getTenantDb(tenantId);
+  const { agentState } = await import('@caishen/db/schema/agent-state');
+  await tenantDb.drizzle
+    .insert(agentState)
+    .values({ tenantId, pausedBool: false, pausedAt: null })
+    .onConflictDoUpdate({
+      target: agentState.tenantId,
+      set: { pausedBool: false, pausedAt: null },
+    });
+  return { paused: false, ts: new Date().toISOString() };
+}
+
+function currentDateGmt(): string {
+  const d = new Date();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
