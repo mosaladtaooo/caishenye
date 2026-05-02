@@ -1,0 +1,52 @@
+; Always-On Channels session — caishen-telegram subagent runner.
+;
+; FR-004 — the daemon that long-polls the Telegram Bot API and dispatches
+; messages into the wrapper (packages/channels/src/wrapper.ts) which then
+; invokes the operator-managed `claude` CLI in subagent mode.
+;
+; Constitution §1 + §13 — subscription-only auth. The `claude` CLI is logged
+; into the operator's Anthropic subscription via `claude login` (per
+; AC-010-3); that login session is stored under the user's home dir and
+; read by claude on each invocation. No API-key env vars permitted here.
+;
+; The unit auto-restarts on crash (Restart=always) per AC-005-3 (recovery).
+; A separate timer-driven oneshot (caishen-channels-restart.{service,timer})
+; periodically restarts during idle gaps per ADR-009.
+
+[Unit]
+Description=财神爷 Channels session — Telegram operator surface
+After=network-online.target tailscale-funnel.service
+Wants=network-online.target tailscale-funnel.service
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=caishen
+Group=caishen
+WorkingDirectory=/opt/caishen-channels
+EnvironmentFile=/etc/caishen/channels.env
+; The loop entry-point lives in the worktree's packages/channels/scripts/
+; loop.ts (operator-deployed via setup.sh — see infra/vps/setup.sh).
+ExecStart=/usr/local/bin/bun run /opt/caishen-channels/scripts/loop.ts
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=caishen-channels
+
+; Restart policy — every crash auto-restarts after 5s. ADR-009 idle-restart
+; timer is a separate trigger.
+Restart=always
+RestartSec=5s
+
+; Security hardening (R2 — narrow filesystem write scope to subagent's work/).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/caishen-channels/work /var/log/caishen
+; The claude CLI's session cache lives under the user's home — required.
+ProtectHome=tmpfs
+BindReadOnlyPaths=/opt/caishen-channels/scripts /opt/caishen-channels/agents /opt/caishen-channels/data
+
+[Install]
+WantedBy=multi-user.target

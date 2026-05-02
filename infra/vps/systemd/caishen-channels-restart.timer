@@ -1,0 +1,19 @@
+; ADR-009 — periodic restart trigger.
+;
+; Runs the restart oneshot every 30 minutes. AccuracySec=1m keeps the
+; trigger tight without burning power; Persistent=false because we don't
+; want catch-up bursts after a long downtime.
+
+[Unit]
+Description=财神爷 Channels session — restart-on-idle timer (ADR-009)
+
+[Timer]
+; Boot-relative: first fire 30 min after boot, then every 30 min.
+OnBootSec=30min
+OnUnitActiveSec=30min
+AccuracySec=1m
+Persistent=false
+Unit=caishen-channels-restart.service
+
+[Install]
+WantedBy=timers.target

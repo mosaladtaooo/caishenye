@@ -1,0 +1,23 @@
+; ADR-009 — periodic restart oneshot.
+;
+; Triggered by caishen-channels-restart.timer every 30 minutes during quiet
+; operator hours. Sends a SIGTERM to the main caishen-channels.service so
+; systemd's Restart=always brings up a fresh `claude` subagent process —
+; mitigating long-lived-session memory/state drift the brainstorm flagged.
+;
+; Honours mute marker: if `channels_health.mute_alarm_until` (per ADR-009)
+; is in the future, the restart is skipped.
+
+[Unit]
+Description=财神爷 Channels session — periodic restart (ADR-009)
+ConditionPathExists=/opt/caishen-channels/scripts/restart-on-idle.sh
+
+[Service]
+Type=oneshot
+User=caishen
+Group=caishen
+EnvironmentFile=/etc/caishen/channels.env
+ExecStart=/opt/caishen-channels/scripts/restart-on-idle.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=caishen-channels-restart
