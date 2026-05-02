@@ -1,0 +1,52 @@
+{
+  "feature": "001-foundation-routines-channels-dashboard",
+  "spec_version": 1,
+  "recorded_at": null,
+  "_comment_recorded_at": "Set to ISO timestamp by spike runner once any spike completes. Until then the field is null and downstream tests treat all spike data as PENDING.",
+  "spikes": {
+    "AC-001-1": {
+      "id": "AC-001-1",
+      "name": "Cap-exempt one-off scheduling",
+      "status": "PENDING",
+      "recorded_at": null,
+      "details": {
+        "_comment": "Set by runSpike1 — flag_exists, cap_usage_before/after, cap_delta. Live run requires SPIKE_NOOP_ROUTINE_BEARER + 12-min wall clock."
+      },
+      "notes": "PENDING — operator-side live run blocked until SPIKE_NOOP_ROUTINE_BEARER is captured. Anthropic docs (Context7 2026-05-03) document this as PASS, but the spec mandates code-level verification."
+    },
+    "AC-001-2": {
+      "id": "AC-001-2",
+      "name": "Executor duration + Opus 4.7 1M math fidelity",
+      "status": "PENDING",
+      "recorded_at": null,
+      "details": {
+        "_comment": "Set by runSpike2 — durations_ms (per-run array), max_relative_error (LLM vs Python ref), fr_013_skip flag. Live run requires Opus 4.7 1M API + ta-lib reference."
+      },
+      "notes": "PENDING — drives FR-013 SKIP/BUILD decision (math threshold 1e-3) AND ADR-003 fallback (12-min duration ceiling)."
+    },
+    "AC-001-3": {
+      "id": "AC-001-3",
+      "name": "/fire API + deployed-prompt READ probe",
+      "status": "PENDING",
+      "recorded_at": null,
+      "details": {
+        "_comment": "Set by runSpike3 — claude_code_session_id, claude_code_session_url, deployed_prompt_endpoint."
+      },
+      "notes": "PENDING — drives `deployed_prompt_endpoint` field below (Tier 2 prompt-preservation gate)."
+    },
+    "AC-001-4": {
+      "id": "AC-001-4",
+      "name": "24h Routines + Channels token soak",
+      "status": "PENDING",
+      "recorded_at": null,
+      "details": {
+        "_comment": "Set by runSpike4 — pre_pct, post_pct, projected_weekly_pct. Live run requires 24h soak + /usage screenshots."
+      },
+      "notes": "PENDING — drives FR-021 alert tier configuration AND ADR-008 reconciliation cron decision."
+    }
+  },
+  "deployed_prompt_endpoint": null,
+  "_comment_deployed_prompt_endpoint": "Set by Spike 3 step 6 (R1 driver). null = no GET endpoint found, Tier 2 prompt-preserve test SKIPS in CI. {url_pattern, method, bearer_env_var} = endpoint discovered, Tier 2 ENABLED.",
+  "v1_usage_endpoint_available": null,
+  "_comment_v1_usage_endpoint_available": "Set by Spike 4 step 6 (ADR-008 driver). false = local-counter-only path (current ADR-008). true = adds reconciliation cron in FR-021."
+}

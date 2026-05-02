@@ -38,13 +38,8 @@ pre-commit:
       stage_fixed: false
 
     - name: gitleaks
-      # Constitution §10 — secret scan. Locally optional if gitleaks isn't
-      # installed (CI enforces); we use `command -v` to skip silently rather
-      # than fail when the binary is missing on a dev laptop.
-      run: |
-        if command -v gitleaks >/dev/null 2>&1; then
-          gitleaks protect --staged --source . --redact --verbose
-        else
-          echo "gitleaks: not installed locally — CI will enforce. Skipping."
-        fi
+      # Constitution §10 — secret scan. Delegated to a script so lefthook's
+      # YAML parser doesn't have to grok shell guards. The script handles
+      # the "not installed locally" case gracefully (CI will enforce).
+      run: bash scripts/gitleaks-protect.sh
       stage_fixed: false
