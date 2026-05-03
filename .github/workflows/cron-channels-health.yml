@@ -1,0 +1,40 @@
+# cron-channels-health — fires every 5 min (best-effort; GH Actions cron has
+# documented up-to-15-min jitter). Curls the Vercel-deployed
+# /api/cron/channels-health handler with the shared CRON_SECRET bearer.
+#
+# Per ADR-011 amendment: Vercel Hobby plan blocks sub-daily Vercel crons,
+# so the trigger source for AC-005-2 (5-min channels-session cross-check)
+# moved here. The Next.js handler is unchanged.
+#
+# Required GitHub repo Secrets:
+#   - CRON_SECRET            — same value as the Vercel project env var
+#   - VERCEL_DEPLOYMENT_URL  — full base URL, e.g. https://caishen-v2.vercel.app
+#
+# Constitution §1 + §13: no ANTHROPIC_API_KEY referenced — auth is a routine-
+# scoped CRON_SECRET, not an Anthropic credential.
+
+name: cron-channels-health
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: curl /api/cron/channels-health
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: curl Vercel handler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::error::CRON_SECRET or VERCEL_DEPLOYMENT_URL not set in repo Secrets"
+            exit 1
+          fi
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$DEPLOY_URL/api/cron/channels-health"

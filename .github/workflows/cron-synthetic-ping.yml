@@ -1,0 +1,37 @@
+# cron-synthetic-ping — fires every 30 min (best-effort; GH Actions cron has
+# documented up-to-15-min jitter; AC-005-1's ~45-min freshness window absorbs
+# this). Curls the Vercel-deployed /api/cron/synthetic-ping handler.
+#
+# Per ADR-011 amendment: trigger source moved off Vercel due to Hobby plan
+# blocking sub-daily Vercel crons. Handler in packages/dashboard/app/api/
+# cron/synthetic-ping/route.ts unchanged.
+#
+# Required GitHub repo Secrets:
+#   - CRON_SECRET            — same value as the Vercel project env var
+#   - VERCEL_DEPLOYMENT_URL  — full base URL, e.g. https://caishen-v2.vercel.app
+
+name: cron-synthetic-ping
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: curl /api/cron/synthetic-ping
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: curl Vercel handler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::error::CRON_SECRET or VERCEL_DEPLOYMENT_URL not set in repo Secrets"
+            exit 1
+          fi
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$DEPLOY_URL/api/cron/synthetic-ping"
