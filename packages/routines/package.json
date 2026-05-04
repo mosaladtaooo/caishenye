@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./telegram-bot": "./src/telegram-bot.ts",
     "./planner": "./src/planner.ts",
-    "./executor": "./src/executor.ts"
+    "./executor": "./src/executor.ts",
+    "./news": "./src/news.ts"
   },
   "scripts": {
     "tsc": "tsc --noEmit -p tsconfig.json",
