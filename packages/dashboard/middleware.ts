@@ -5,10 +5,12 @@
  *   - /login (Auth.js sign-in page)
  *   - /api/auth/* (Auth.js handlers)
  *   - /api/cron/* (CRON_SECRET-gated; auth() does not apply)
+ *   - /api/internal/* (INTERNAL_API_TOKEN-gated per ADR-012; auth() does not apply)
  *
  * The middleware redirects unauthenticated requests to /login; route
- * handlers re-verify via auth() before any state-changing action so a
- * tampered cookie can't slip through if the middleware is bypassed.
+ * handlers re-verify via auth() (or validateInternalAuth / validateCronAuth)
+ * before any state-changing action so a tampered cookie can't slip through
+ * if the middleware is bypassed.
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
@@ -17,6 +19,7 @@ const PUBLIC_PATHS = [
   '/login',
   '/api/auth',
   '/api/cron',
+  '/api/internal',
   // Static next assets — implicit, but listing for clarity.
   '/_next',
   '/favicon.ico',
