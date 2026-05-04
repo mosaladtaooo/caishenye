@@ -55,3 +55,5 @@ design/dashboard-bundle/assets/
 
 # Spike report screenshots (large; not part of repo audit trail)
 docs/preserve-screenshots/
+
+.vercel

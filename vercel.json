@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "bun --filter '@caishen/dashboard' run build",
+  "installCommand": "bun install",
+  "outputDirectory": "packages/dashboard/.next",
   "crons": [
     { "path": "/api/cron/orphan-detect", "schedule": "15 4 * * *" },
     { "path": "/api/cron/audit-archive", "schedule": "30 3 * * *" },

@@ -103,9 +103,15 @@ describe('FR-005 AC-005-1: cron-synthetic-ping.yml schedule pin', () => {
 });
 
 describe('FR-005 AC-005-2 amendment: vercel.json no longer declares sub-daily crons', () => {
-  const VERCEL_JSON = join(REPO_ROOT, 'packages', 'dashboard', 'vercel.json');
+  // Note: vercel.json moved from packages/dashboard/ to monorepo root in session
+  // 5d when the project was re-linked at the monorepo root for Bun-workspace
+  // build support. Vercel reads vercel.json from the deployment root directory,
+  // which is now the monorepo root. The cron declarations + amendment intent
+  // (no sub-daily crons; daily-only) are unchanged — only the file location
+  // moved one directory up.
+  const VERCEL_JSON = join(REPO_ROOT, 'vercel.json');
 
-  it('vercel.json exists', () => {
+  it('vercel.json exists at monorepo root', () => {
     expect(existsSync(VERCEL_JSON)).toBe(true);
   });
 

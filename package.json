@@ -27,7 +27,7 @@
     "spike": "bun --filter '@caishen/routines' run spike",
     "seed": "bun --filter '@caishen/db' run seed",
     "preserve-mirror-sync": "bash scripts/preserve-mirror-sync.sh",
-    "prepare": "lefthook install"
+    "prepare": "node -e \"try { require('node:child_process').execSync('git rev-parse --git-dir', { stdio: 'ignore' }); require('node:child_process').execSync('lefthook install', { stdio: 'inherit' }); } catch (_) { console.log('[prepare] skipping lefthook install — not in a git repo (typical for Vercel build env)'); }\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
