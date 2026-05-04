@@ -1,30 +1,3 @@
-# Planner Routine — System Prompt (Vercel-Proxy Pattern)
-
-**Source**: composed from `.harness/spec/preserve/planner-systemprompt.md` (the verbatim trading IP) + a Tools-available appendix specific to the Vercel-proxy execution model (ADR-012).
-
-**Status**: This is the file the operator pastes into the `财神爷-planner` Routine's "Instructions" field. The verbatim portion (everything between the `BEGIN VERBATIM` and `END VERBATIM` markers below) is byte-identical to `planner-systemprompt.md`. The appendix tells Claude how to call its tools via Bash+curl against the Vercel proxy.
-
-**Constitution §2 contract**: the `BEGIN VERBATIM`…`END VERBATIM` slice MUST byte-match `planner-systemprompt.md`. The Tier-2 deployed-prompt-preservation test (AC-002-1-b) extracts the slice from this file and diffs it against the live Routine. If Anthropic's deployed-prompt READ endpoint is available, the test compares directly to `planner-systemprompt.md`.
-
-**User-message template** for the daily Planner run (extracted from the verbatim file):
-
-```
-Here's the news today:
-Time Now: {NOW_GMT}
-News count:{NEWS_COUNT}
-{NEWS_MARKDOWN}
-```
-
-`{NOW_GMT}` = `new Date().toISOString()` at fire time.
-`{NEWS_COUNT}` = number of news items returned by the news fetch step.
-`{NEWS_MARKDOWN}` = the markdown-rendered news summary (see `news.ts` from FR-014).
-
-**Output schema (existing — preserve)**: an `output.sessions` array of two session objects, each with `session_name`, `start_time` (ISO 8601 GMT), `end_time` (ISO 8601 GMT), `reason`. Empty `start_time`/`end_time` strings signal "no trade window for this session".
-
----
-
-## SYSTEM PROMPT — verbatim slice (DO NOT EDIT)
-
 <!-- BEGIN VERBATIM -->
 # ROLE & EXPERTISE:
 You are an Elite Institutional Quant-Trader and Macro-Economic Analyst. You possess deep expertise in Forex Market Microstructure, Central Bank Monetary Policy, and Global Macro-economics.

@@ -1,31 +1,3 @@
-# SPARTAN TRADING INTELLECT — System Prompt (Vercel-Proxy Pattern)
-
-**Source**: composed from `.harness/spec/preserve/spartan-systemprompt.md` (the verbatim trading IP) + a Tools-available appendix specific to the Vercel-proxy execution model (ADR-012).
-
-**Status**: This is the file the operator pastes into the `财神爷-executor` Routine's "Instructions" field. The verbatim portion (everything between the `BEGIN VERBATIM` and `END VERBATIM` markers below) is byte-identical to `spartan-systemprompt.md`. The appendix tells Claude how to call its tools via Bash+curl against the Vercel proxy.
-
-**Constitution §2 contract**: the `BEGIN VERBATIM`…`END VERBATIM` slice MUST byte-match `spartan-systemprompt.md`. The Tier-2 deployed-prompt-preservation test (AC-003-1-b) extracts the slice from this file and diffs it against the live Routine. If Anthropic's deployed-prompt READ endpoint is available, the test compares directly to `spartan-systemprompt.md`.
-
-**User-message template** for each Executor run:
-
-```
-LET'S START
-Current Analysis Pair :
-{PAIR_NAME}
-
-{IF PAIR_NAME == 'XAU/USD':}
-⚠️ CRITICAL INSTRUCTION: When executing the MetaTrader tool for this asset, you MUST use the exact symbol "XAUUSD". DO NOT use "XAUUSDF" under any circumstances.
-
-Time Now: {NOW_GMT}
-```
-
-`{PAIR_NAME}` substituted with the current pair (e.g., `EUR/USD`, `XAU/USD`).
-`{NOW_GMT}` substituted with `new Date().toISOString()` at fire time.
-
----
-
-## SYSTEM PROMPT — verbatim slice (DO NOT EDIT)
-
 <!-- BEGIN VERBATIM -->
 You are "SPARTAN TRADING INTELLECT" – an elite-level AUTOTRADE forex strategist trader and discipline enforcer. 
 
