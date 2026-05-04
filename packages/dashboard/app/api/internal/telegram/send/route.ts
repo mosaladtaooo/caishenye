@@ -1,11 +1,29 @@
 /**
  * POST /api/internal/telegram/send — proxy to Telegram Bot API sendMessage.
  *
- * Body: { chat_id, text, tenantId? } (tenantId defaults to 1).
+ * Body: { chat_id?, text, tenantId? }
+ *   - tenantId defaults to 1.
+ *   - chat_id is OPTIONAL (session 5g change). If absent, falls back to
+ *     the FIRST entry in tenants.allowed_telegram_user_ids — the canonical
+ *     "operator's chat" the Routine should reach for digest/alert messages.
  *
  * Validates chat_id is in tenants.allowed_telegram_user_ids — defence
- * against compromised Routine spamming arbitrary chat IDs (related to
- * clarify Q1 / AC-004-6).
+ * against compromised Routine spamming arbitrary chat IDs (clarify Q1 /
+ * AC-004-6). The fallback path inherits this guarantee for free since the
+ * fallback value is drawn from the allowlist itself.
+ *
+ * Session 5g — chat_id became optional after live wire-up showed the
+ * Planner/Executor system prompts have no clean way to learn the operator's
+ * chat ID without it being smuggled in via env (which would either leak
+ * via /fire payload logs or require a new INTERNAL_API_TOKEN-equivalent
+ * per-tenant secret in Cloud Env). The allowlist[0] fallback keeps the
+ * Routine prompt stateless re: chat IDs.
+ *
+ * Operator override: if `OPERATOR_CHAT_ID` env is set on the Vercel side,
+ * it takes precedence over allowlist[0]. Optional convenience for ops who
+ * keep multiple allowlisted users but want a specific one to receive the
+ * default digest. Untyped/non-numeric values are ignored (logs the issue
+ * via stderr but still falls through to allowlist[0]).
  */
 
 import { getTenantDb } from '@caishen/db/client';
@@ -16,7 +34,8 @@ import { validateInternalAuth } from '@/lib/internal-auth';
 import { jsonRes } from '@/lib/internal-route-helpers';
 
 interface SendBody {
-  chat_id: number;
+  /** Optional — if absent, OPERATOR_CHAT_ID env wins, else allowlist[0]. */
+  chat_id?: number;
   text: string;
   tenantId: number;
 }
@@ -24,10 +43,24 @@ interface SendBody {
 function validateBody(raw: unknown): SendBody | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (typeof r.chat_id !== 'number') return null;
   if (typeof r.text !== 'string' || r.text.length === 0) return null;
   const tenantId = typeof r.tenantId === 'number' ? r.tenantId : 1;
-  return { chat_id: r.chat_id, text: r.text, tenantId };
+  const out: SendBody = { text: r.text, tenantId };
+  if (typeof r.chat_id === 'number') out.chat_id = r.chat_id;
+  return out;
+}
+
+function readOperatorChatIdEnv(): number | null {
+  const raw = process.env.OPERATOR_CHAT_ID ?? '';
+  if (raw.length === 0) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    process.stderr.write(
+      `telegram/send: OPERATOR_CHAT_ID env present but not a positive number; ignoring\n`,
+    );
+    return null;
+  }
+  return n;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -50,10 +83,13 @@ export async function POST(req: Request): Promise<Response> {
 
   const body = validateBody(raw);
   if (!body) {
-    return jsonRes(400, { error: 'invalid body: require { chat_id: number, text: string }' });
+    return jsonRes(400, {
+      error: 'invalid body: require { text: string }; chat_id and tenantId optional',
+    });
   }
 
-  // Allowlist check: chat_id must be in tenants.allowed_telegram_user_ids.
+  // Allowlist lookup happens regardless of supplied chat_id — both gates
+  // (provided or fallback) MUST be in the allowlist.
   let allowedIds: readonly number[];
   try {
     const tenantDb = getTenantDb(body.tenantId);
@@ -67,16 +103,32 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(500, { error: `telegram/send: tenant lookup failed: ${msg.slice(0, 256)}` });
   }
 
-  if (!allowedIds.includes(body.chat_id)) {
+  // Resolve target chat_id.
+  let targetChatId: number | undefined = body.chat_id;
+  if (targetChatId === undefined) {
+    const envOverride = readOperatorChatIdEnv();
+    if (envOverride !== null && allowedIds.includes(envOverride)) {
+      targetChatId = envOverride;
+    } else if (allowedIds.length > 0) {
+      targetChatId = allowedIds[0];
+    } else {
+      return jsonRes(503, {
+        error:
+          'telegram/send: no chat_id given and tenant allowlist is empty — operator must set tenants.allowed_telegram_user_ids',
+      });
+    }
+  }
+
+  if (!allowedIds.includes(targetChatId)) {
     return jsonRes(403, {
-      error: `telegram/send: chat_id ${body.chat_id} not in tenant ${body.tenantId} allowlist`,
+      error: `telegram/send: chat_id ${targetChatId} not in tenant ${body.tenantId} allowlist`,
     });
   }
 
   // Forward to the Bot API via the routines/telegram-bot helper.
   try {
     const result = await sendTelegramMessage(
-      { chatId: body.chat_id, text: body.text },
+      { chatId: targetChatId, text: body.text },
       {
         fetch,
         botToken,
@@ -86,7 +138,7 @@ export async function POST(req: Request): Promise<Response> {
           }),
       },
     );
-    return jsonRes(200, { ok: true, telegramMessageId: result.message_id });
+    return jsonRes(200, { ok: true, telegramMessageId: result.message_id, chatId: targetChatId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonRes(502, { error: `telegram/send: ${msg.slice(0, 256)}` });
