@@ -76,7 +76,7 @@ describe('GET /api/internal/mt5/account — happy path', () => {
     const res = await route.GET(buildReq(`Bearer ${fixtureBearer}`));
     expect(res.status).toBe(200);
     expect(mt5GetSpy).toHaveBeenCalledTimes(1);
-    expect(mt5GetSpy).toHaveBeenCalledWith('/account');
+    expect(mt5GetSpy).toHaveBeenCalledWith('/api/v1/account/info');
     const body = (await res.json()) as { balance: number; equity: number; currency: string };
     expect(body.balance).toBe(1234.56);
     expect(body.currency).toBe('USD');

@@ -121,7 +121,7 @@ describe('POST /api/internal/mt5/orders — body validation', () => {
 });
 
 describe('POST /api/internal/mt5/orders — happy path', () => {
-  it('forwards minimal valid body and returns the upstream response', async () => {
+  it('forwards minimal valid body to /api/v1/order/market with translated shape', async () => {
     mt5PostSpy.mockResolvedValue({ ticket: 12345, status: 'placed' });
     const route = await importRoute();
     const res = await route.POST(
@@ -129,16 +129,17 @@ describe('POST /api/internal/mt5/orders — happy path', () => {
     );
     expect(res.status).toBe(200);
     expect(mt5PostSpy).toHaveBeenCalledTimes(1);
-    expect(mt5PostSpy).toHaveBeenCalledWith('/orders', {
+    // Upstream shape: type (not side), stop_loss/take_profit (not sl/tp).
+    expect(mt5PostSpy).toHaveBeenCalledWith('/api/v1/order/market', {
       symbol: 'XAUUSD',
-      side: 'buy',
+      type: 'BUY',
       volume: 0.1,
     });
     const body = (await res.json()) as { ticket: number };
     expect(body.ticket).toBe(12345);
   });
 
-  it('forwards full body with sl, tp, comment', async () => {
+  it('translates side: "sell" → type: "SELL" and full body with stop_loss/take_profit/comment', async () => {
     mt5PostSpy.mockResolvedValue({ ticket: 99 });
     const route = await importRoute();
     await route.POST(
@@ -154,14 +155,24 @@ describe('POST /api/internal/mt5/orders — happy path', () => {
         `Bearer ${fixtureBearer}`,
       ),
     );
-    expect(mt5PostSpy).toHaveBeenCalledWith('/orders', {
+    expect(mt5PostSpy).toHaveBeenCalledWith('/api/v1/order/market', {
       symbol: 'EURUSD',
-      side: 'sell',
+      type: 'SELL',
       volume: 0.5,
-      sl: 1.09,
-      tp: 1.07,
+      stop_loss: 1.09,
+      take_profit: 1.07,
       comment: 'caishen-12',
     });
+  });
+
+  it('sanitises symbol to alphanumeric+upper before forwarding (path-injection defence)', async () => {
+    mt5PostSpy.mockResolvedValue({ ticket: 1 });
+    const route = await importRoute();
+    await route.POST(
+      buildReq({ symbol: 'eur/usd;drop', side: 'buy', volume: 0.1 }, `Bearer ${fixtureBearer}`),
+    );
+    const passedBody = mt5PostSpy.mock.calls[0]?.[1] as { symbol: string };
+    expect(passedBody.symbol).toBe('EURUSDDROP');
   });
 
   it('strips unknown fields before forwarding (defence against prompt-injection)', async () => {
@@ -188,7 +199,7 @@ describe('POST /api/internal/mt5/orders — happy path', () => {
 
 describe('POST /api/internal/mt5/orders — upstream errors', () => {
   it('returns 502 when mt5Post throws upstream error', async () => {
-    mt5PostSpy.mockRejectedValue(new Error('mt5: POST /orders → HTTP 500: rejected'));
+    mt5PostSpy.mockRejectedValue(new Error('mt5: POST /api/v1/order/market → HTTP 500: rejected'));
     const route = await importRoute();
     const res = await route.POST(
       buildReq({ symbol: 'XAUUSD', side: 'buy', volume: 0.1 }, `Bearer ${fixtureBearer}`),

@@ -113,8 +113,8 @@ describe('GET /api/internal/mt5/candles — query validation', () => {
   });
 });
 
-describe('GET /api/internal/mt5/candles — happy path', () => {
-  it('forwards with the validated query and returns the upstream candles array', async () => {
+describe('GET /api/internal/mt5/candles — count mode (latest)', () => {
+  it('forwards to /api/v1/market/candles/latest with symbol_name + count', async () => {
     mt5GetSpy.mockResolvedValue([
       { time: '2026-05-04T08:00:00Z', open: 2300, high: 2310, low: 2295, close: 2305 },
       { time: '2026-05-04T12:00:00Z', open: 2305, high: 2320, low: 2300, close: 2315 },
@@ -126,8 +126,9 @@ describe('GET /api/internal/mt5/candles — happy path', () => {
     expect(res.status).toBe(200);
     expect(mt5GetSpy).toHaveBeenCalledTimes(1);
     const calledWith = mt5GetSpy.mock.calls[0]?.[0] as string;
-    expect(calledWith).toMatch(/^\/candles\?/);
-    expect(calledWith).toContain('symbol=XAUUSD');
+    expect(calledWith).toMatch(/^\/api\/v1\/market\/candles\/latest\?/);
+    // Upstream uses symbol_name, not symbol.
+    expect(calledWith).toContain('symbol_name=XAUUSD');
     expect(calledWith).toContain('timeframe=H4');
     expect(calledWith).toContain('count=180');
   });
@@ -141,6 +142,65 @@ describe('GET /api/internal/mt5/candles — happy path', () => {
       );
       expect(res.status).toBe(200);
     }
+  });
+
+  it('sanitises symbol → alphanumeric + uppercase before forwarding', async () => {
+    mt5GetSpy.mockResolvedValue([]);
+    const route = await importRoute();
+    await route.GET(buildReq('?symbol=eur%2Fusd&timeframe=H1&count=10', `Bearer ${fixtureBearer}`));
+    const calledWith = mt5GetSpy.mock.calls[0]?.[0] as string;
+    expect(calledWith).toContain('symbol_name=EURUSD');
+    expect(calledWith).not.toContain('/usd');
+  });
+});
+
+describe('GET /api/internal/mt5/candles — date mode', () => {
+  it('forwards to /api/v1/market/candles/date with date_from + date_to', async () => {
+    mt5GetSpy.mockResolvedValue([]);
+    const route = await importRoute();
+    const res = await route.GET(
+      buildReq(
+        '?symbol=EURUSD&timeframe=M15&date_from=2026-05-03+08%3A00&date_to=2026-05-04+08%3A00',
+        `Bearer ${fixtureBearer}`,
+      ),
+    );
+    expect(res.status).toBe(200);
+    const calledWith = mt5GetSpy.mock.calls[0]?.[0] as string;
+    expect(calledWith).toMatch(/^\/api\/v1\/market\/candles\/date\?/);
+    expect(calledWith).toContain('symbol_name=EURUSD');
+    expect(calledWith).toContain('timeframe=M15');
+    expect(calledWith).toContain('date_from=');
+    expect(calledWith).toContain('date_to=');
+  });
+
+  it('rejects date mode with only one of date_from/date_to (400)', async () => {
+    const route = await importRoute();
+    const res = await route.GET(
+      buildReq(
+        '?symbol=EURUSD&timeframe=M15&date_from=2026-05-03+08%3A00',
+        `Bearer ${fixtureBearer}`,
+      ),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects providing BOTH count AND date_from (400 — ambiguous mode)', async () => {
+    const route = await importRoute();
+    const res = await route.GET(
+      buildReq(
+        '?symbol=EURUSD&timeframe=M15&count=10&date_from=2026-05-03+08%3A00&date_to=2026-05-04+08%3A00',
+        `Bearer ${fixtureBearer}`,
+      ),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects when neither count nor date_from given (400)', async () => {
+    const route = await importRoute();
+    const res = await route.GET(
+      buildReq('?symbol=EURUSD&timeframe=M15', `Bearer ${fixtureBearer}`),
+    );
+    expect(res.status).toBe(400);
   });
 });
 

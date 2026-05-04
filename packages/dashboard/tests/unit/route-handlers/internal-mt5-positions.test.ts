@@ -66,7 +66,7 @@ describe('GET /api/internal/mt5/positions', () => {
     expect(res.status).toBe(401);
   });
 
-  it('forwards to mt5Get("/positions") and returns the JSON list', async () => {
+  it('forwards to mt5Get("/api/v1/positions") and returns the JSON list', async () => {
     mt5GetSpy.mockResolvedValue([
       { ticket: 1, symbol: 'XAUUSD', volume: 0.1, side: 'buy', sl: 2300, tp: 2400 },
       { ticket: 2, symbol: 'EURUSD', volume: 0.5, side: 'sell', sl: 1.09, tp: 1.07 },
@@ -74,7 +74,7 @@ describe('GET /api/internal/mt5/positions', () => {
     const route = await importRoute();
     const res = await route.GET(buildReq(`Bearer ${fixtureBearer}`));
     expect(res.status).toBe(200);
-    expect(mt5GetSpy).toHaveBeenCalledWith('/positions');
+    expect(mt5GetSpy).toHaveBeenCalledWith('/api/v1/positions');
     const body = (await res.json()) as Array<{ ticket: number; symbol: string }>;
     expect(body).toHaveLength(2);
     expect(body[0]?.symbol).toBe('XAUUSD');
@@ -90,7 +90,7 @@ describe('GET /api/internal/mt5/positions', () => {
   });
 
   it('returns 502 on upstream error', async () => {
-    mt5GetSpy.mockRejectedValue(new Error('mt5: GET /positions → HTTP 503: down'));
+    mt5GetSpy.mockRejectedValue(new Error('mt5: GET /api/v1/positions → HTTP 503: down'));
     const route = await importRoute();
     const res = await route.GET(buildReq(`Bearer ${fixtureBearer}`));
     expect(res.status).toBe(502);
@@ -101,5 +101,45 @@ describe('GET /api/internal/mt5/positions', () => {
     const route = await importRoute();
     const res = await route.GET(buildReq(`Bearer ${fixtureBearer}`));
     expect(res.status).toBe(500);
+  });
+});
+
+describe('GET /api/internal/mt5/positions — symbol filter', () => {
+  function buildReqWithSymbol(symbol: string, headerValue?: string): Request {
+    const headers = new Headers();
+    if (headerValue !== undefined) headers.set('Authorization', headerValue);
+    return new Request(`https://app.local/api/internal/mt5/positions?symbol=${symbol}`, {
+      method: 'GET',
+      headers,
+    });
+  }
+
+  it('forwards to /api/v1/positions/symbol/<sym> when symbol query present', async () => {
+    mt5GetSpy.mockResolvedValue([{ ticket: 5, symbol: 'EURUSD', volume: 0.3 }]);
+    const route = await importRoute();
+    const res = await route.GET(buildReqWithSymbol('EURUSD', `Bearer ${fixtureBearer}`));
+    expect(res.status).toBe(200);
+    expect(mt5GetSpy).toHaveBeenCalledWith('/api/v1/positions/symbol/EURUSD');
+  });
+
+  it('sanitises and uppercases the symbol (path-injection defence)', async () => {
+    mt5GetSpy.mockResolvedValue([]);
+    const route = await importRoute();
+    // attacker tries to inject path traversal: %2F → '/', %3B → ';' after URL decode
+    await route.GET(buildReqWithSymbol('eur%2Fusd%3Bdrop', `Bearer ${fixtureBearer}`));
+    const callPath = mt5GetSpy.mock.calls[0]?.[0] as string;
+    expect(callPath).toBe('/api/v1/positions/symbol/EURUSDDROP');
+    // The sanitised symbol component (after the last '/') must contain neither '/' nor ';'.
+    const symbolComponent = callPath.split('/').pop() ?? '';
+    expect(symbolComponent).not.toContain('/');
+    expect(symbolComponent).not.toContain(';');
+    expect(symbolComponent).toBe('EURUSDDROP');
+  });
+
+  it('treats empty symbol param as full-list (no symbol path)', async () => {
+    mt5GetSpy.mockResolvedValue([]);
+    const route = await importRoute();
+    await route.GET(buildReqWithSymbol('', `Bearer ${fixtureBearer}`));
+    expect(mt5GetSpy).toHaveBeenCalledWith('/api/v1/positions');
   });
 });
