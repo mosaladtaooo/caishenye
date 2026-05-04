@@ -66,6 +66,40 @@ function readOptionalString(p: Record<string, unknown>, key: string): string | n
   return v;
 }
 
+/**
+ * Permitted routine_name enum values for `insert_routine_run`.
+ * Mirrors the routineRunRoutineName Postgres enum exactly. We hard-code the
+ * list (rather than importing from the Drizzle schema) so the route layer
+ * fails fast on bad input without round-tripping to Postgres for a 22P02.
+ */
+const ROUTINE_NAMES = new Set([
+  'planner',
+  'executor',
+  'spike_ac_001_1',
+  'spike_ac_001_2',
+  'spike_ac_001_3',
+  'spike_ac_001_4',
+  'cap_status',
+  'replan_orchestrator',
+] as const);
+type RoutineName =
+  | 'planner'
+  | 'executor'
+  | 'spike_ac_001_1'
+  | 'spike_ac_001_2'
+  | 'spike_ac_001_3'
+  | 'spike_ac_001_4'
+  | 'cap_status'
+  | 'replan_orchestrator';
+
+const ROUTINE_FIRE_KINDS = new Set([
+  'recurring',
+  'scheduled_one_off',
+  'fire_api',
+  'claude_run_bash',
+] as const);
+type RoutineFireKind = 'recurring' | 'scheduled_one_off' | 'fire_api' | 'claude_run_bash';
+
 // ─── named queries ─────────────────────────────────────────────────────
 
 const handlers: Record<string, (params: Record<string, unknown>) => Promise<NamedQueryResult>> = {
@@ -212,6 +246,74 @@ const handlers: Record<string, (params: Record<string, unknown>) => Promise<Name
       .orderBy(desc(telegramInteractions.repliedAt))
       .limit(50);
     return { rows };
+  },
+
+  /**
+   * Insert a routine_runs row at the START of a Routine session — the
+   * Planner/Executor's FIRST proxy call. Returns the inserted id which the
+   * Routine then carries through every subsequent call and uses for the
+   * audit settle (update_routine_run) at the end.
+   *
+   * Constitution §3 audit-or-abort: this query closes the gap session 5g
+   * surfaced — under Path B (proxy gateway) the Routine has no direct
+   * Postgres handle, so it CANNOT write the in-flight row itself the way
+   * the prior TS-script Routines could. This wrapper gives Claude a
+   * one-call shape that takes the place of `withAuditOrAbort`'s pre-fire
+   * insert and returns the id Claude needs to round-trip through to the
+   * settle step.
+   *
+   * Per constitution §15 LOUD: rejects unknown routine_name / routine_fire_kind
+   * with a 400 from the route layer (we throw with a descriptive message
+   * here that the route's catch maps to 500 after Drizzle would have
+   * failed; cheaper to validate here before round-trip).
+   *
+   * Required params:
+   *   tenantId: number
+   *   routineName: 'planner' | 'executor' | 'spike_ac_001_*' | 'cap_status'
+   *                | 'replan_orchestrator'
+   *   routineFireKind: 'recurring' | 'scheduled_one_off' | 'fire_api'
+   *                    | 'claude_run_bash'
+   * Optional params:
+   *   pair, sessionWindow, claudeCodeSessionId, claudeCodeSessionUrl,
+   *   inputText
+   *
+   * Returns: { rows: [{ id: <new routine_runs.id> }], rowsAffected: 1 }
+   */
+  insert_routine_run: async (params) => {
+    const tenantId = readTenantId(params);
+    const routineName = readString(params, 'routineName');
+    if (!ROUTINE_NAMES.has(routineName as RoutineName)) {
+      throw new Error(
+        `routineName must be one of: ${[...ROUTINE_NAMES].join(',')} — got '${routineName}'`,
+      );
+    }
+    const routineFireKind = readString(params, 'routineFireKind');
+    if (!ROUTINE_FIRE_KINDS.has(routineFireKind as RoutineFireKind)) {
+      throw new Error(
+        `routineFireKind must be one of: ${[...ROUTINE_FIRE_KINDS].join(',')} — got '${routineFireKind}'`,
+      );
+    }
+    const pair = readOptionalString(params, 'pair');
+    const sessionWindow = readOptionalString(params, 'sessionWindow');
+    const claudeCodeSessionId = readOptionalString(params, 'claudeCodeSessionId');
+    const claudeCodeSessionUrl = readOptionalString(params, 'claudeCodeSessionUrl');
+    const inputText = readOptionalString(params, 'inputText');
+    const db = getTenantDb(tenantId);
+    const inserted = await db.drizzle
+      .insert(routineRuns)
+      .values({
+        tenantId,
+        routineName: routineName as RoutineName,
+        routineFireKind: routineFireKind as RoutineFireKind,
+        pair,
+        sessionWindow,
+        claudeCodeSessionId,
+        claudeCodeSessionUrl,
+        inputText,
+        // status defaults to 'running' per schema; startedAt defaults to now()
+      })
+      .returning({ id: routineRuns.id });
+    return { rows: inserted, rowsAffected: inserted.length };
   },
 
   // Update a routine_runs row to settle the in-flight audit row at exit

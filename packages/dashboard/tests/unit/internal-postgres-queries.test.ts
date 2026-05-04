@@ -36,6 +36,7 @@ describe('KNOWN_QUERY_NAMES', () => {
     expect(KNOWN_QUERY_NAMES).toContain('select_open_orders_for_pair');
     expect(KNOWN_QUERY_NAMES).toContain('insert_executor_report');
     expect(KNOWN_QUERY_NAMES).toContain('select_recent_telegram_interactions');
+    expect(KNOWN_QUERY_NAMES).toContain('insert_routine_run'); // session 5g
     expect(KNOWN_QUERY_NAMES).toContain('update_routine_run');
     expect(KNOWN_QUERY_NAMES).toContain('select_cap_status');
   });
@@ -87,5 +88,65 @@ describe('runNamedQuery', () => {
     await expect(
       runNamedQuery({ name: 'update_pair_schedule_one_off_id', params: { tenantId: 1 } }),
     ).rejects.toThrow(/id required/);
+  });
+});
+
+describe('insert_routine_run (session 5g)', () => {
+  it('throws when routineName missing', async () => {
+    const { runNamedQuery } = await importModule();
+    await expect(
+      runNamedQuery({
+        name: 'insert_routine_run',
+        params: { tenantId: 1, routineFireKind: 'fire_api' },
+      }),
+    ).rejects.toThrow(/routineName required/);
+  });
+
+  it('throws when routineName not in the canonical enum', async () => {
+    const { runNamedQuery } = await importModule();
+    await expect(
+      runNamedQuery({
+        name: 'insert_routine_run',
+        params: {
+          tenantId: 1,
+          routineName: 'rogue_routine_name',
+          routineFireKind: 'fire_api',
+        },
+      }),
+    ).rejects.toThrow(/routineName must be one of/);
+  });
+
+  it('throws when routineFireKind missing', async () => {
+    const { runNamedQuery } = await importModule();
+    await expect(
+      runNamedQuery({
+        name: 'insert_routine_run',
+        params: { tenantId: 1, routineName: 'planner' },
+      }),
+    ).rejects.toThrow(/routineFireKind required/);
+  });
+
+  it('throws when routineFireKind not in the canonical enum', async () => {
+    const { runNamedQuery } = await importModule();
+    await expect(
+      runNamedQuery({
+        name: 'insert_routine_run',
+        params: {
+          tenantId: 1,
+          routineName: 'planner',
+          routineFireKind: 'rogue_fire_kind',
+        },
+      }),
+    ).rejects.toThrow(/routineFireKind must be one of/);
+  });
+
+  it('throws when tenantId missing', async () => {
+    const { runNamedQuery } = await importModule();
+    await expect(
+      runNamedQuery({
+        name: 'insert_routine_run',
+        params: { routineName: 'planner', routineFireKind: 'fire_api' },
+      }),
+    ).rejects.toThrow(/tenantId/);
   });
 });
