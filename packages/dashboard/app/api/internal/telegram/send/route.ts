@@ -103,19 +103,24 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(500, { error: `telegram/send: tenant lookup failed: ${msg.slice(0, 256)}` });
   }
 
-  // Resolve target chat_id.
-  let targetChatId: number | undefined = body.chat_id;
-  if (targetChatId === undefined) {
+  // Resolve target chat_id. After this block, targetChatId is `number`
+  // (one of: caller-supplied, OPERATOR_CHAT_ID env override, or allowlist[0]).
+  let targetChatId: number;
+  if (body.chat_id !== undefined) {
+    targetChatId = body.chat_id;
+  } else {
     const envOverride = readOperatorChatIdEnv();
     if (envOverride !== null && allowedIds.includes(envOverride)) {
       targetChatId = envOverride;
-    } else if (allowedIds.length > 0) {
-      targetChatId = allowedIds[0];
     } else {
-      return jsonRes(503, {
-        error:
-          'telegram/send: no chat_id given and tenant allowlist is empty — operator must set tenants.allowed_telegram_user_ids',
-      });
+      const fallback = allowedIds[0];
+      if (typeof fallback !== 'number') {
+        return jsonRes(503, {
+          error:
+            'telegram/send: no chat_id given and tenant allowlist is empty — operator must set tenants.allowed_telegram_user_ids',
+        });
+      }
+      targetChatId = fallback;
     }
   }
 
