@@ -78,21 +78,34 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
 
 | Method | Path | When |
 |---|---|---|
-| GET | `${VERCEL_BASE_URL}/api/internal/ffcal/today` | Step 2 — calendar fetch |
-| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Steps 3, 5, 7 — read pairs, insert pair_schedules, persist one_off_id |
-| POST | `${VERCEL_BASE_URL}/api/internal/anthropic/schedule` | Step 6 — schedule per-pair Executors |
-| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 8 — daily digest |
+| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Step 1 (open audit), step 4 (read pairs), step 7 (insert pair_schedules), step 9 (persist one_off_id), step 11 (audit settle) |
+| GET | `${VERCEL_BASE_URL}/api/internal/news/last-24h` | Step 3 — 24h news context |
+| POST | `${VERCEL_BASE_URL}/api/internal/anthropic/schedule` | Step 8 — schedule per-pair Executors |
+| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 10 — daily digest |
+
+**ForexFactory (calendar) is NOT a proxy route.** Calendar access is via the **ForexFactory MCP connector** attached to your routine. Look in your available-tools list at runtime for tools whose names match `mcp__*` (the operator names the connector when configuring it; common names include `mcp__forexfactory__*`). Call those tools directly via Claude's tool-use mechanism, not via Bash+curl. The legacy `/api/internal/ffcal/today` proxy is **deprecated** and returns `501 Not Implemented` — do NOT call it.
 
 ### Postgres query shapes you may use
 
 The `postgres/query` route accepts a named-query allowlist; raw SQL is not accepted. Use these names with their documented params:
 
 ```
+{ "name": "insert_routine_run",
+  "params": { "tenantId": 1,
+              "routineName": "planner",
+              "routineFireKind": "fire_api",
+              "inputText": "<your trigger summary or empty>" } }
+   → { "rows": [{ "id": 12345 }], "rowsAffected": 1 }
+   // ↑ This is your routine_run_id. Carry it through every later call.
+   //   You inserted it yourself per constitution §3 audit-or-abort —
+   //   the proxy has no shared Postgres handle the way the prior
+   //   TS-script routines did, so insert+settle is now your job.
+
 { "name": "select_active_pairs", "params": { "tenantId": 1 } }
-   → { "rows": [{ "pair_code": "XAUUSD", ... }, ...] }
+   → { "rows": [{ "pair_code": "XAU/USD", "mt5_symbol": "XAUUSD", ... }, ...] }
 
 { "name": "insert_pair_schedule",
-  "params": { "tenantId": 1, "date": "2026-05-04", "pairCode": "XAUUSD",
+  "params": { "tenantId": 1, "date": "2026-05-04", "pairCode": "XAU/USD",
               "sessionName": "london",
               "startTimeGmt": "2026-05-04T08:00:00Z",  // null if no-trade window
               "endTimeGmt":   "2026-05-04T12:00:00Z",  // null if no-trade window
@@ -104,38 +117,55 @@ The `postgres/query` route accepts a named-query allowlist; raw SQL is not accep
    → { "rows": [{ "id": 42 }], "rowsAffected": 1 }
 
 { "name": "update_routine_run",
-  "params": { "tenantId": 1, "id": <your routine_run_id from user message>,
+  "params": { "tenantId": 1, "id": <your routine_run_id from step 1>,
               "status": "completed",
               "outputJson": { "schedulesCreated": 8 } } }
 ```
 
 ### Numbered call flow (your work loop)
 
-1. **Read your audit-row id** from the user message (the Vercel-side proxy supplied a `routine_run_id` when it forwarded `/fire`).
-2. **Calendar fetch** (Bash):
+1. **Open your audit row** — your FIRST action, before any external read or write (constitution §3 audit-or-abort):
+   ```bash
+   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     -H "content-type: application/json" \
+     -d '{"name":"insert_routine_run","params":{"tenantId":1,"routineName":"planner","routineFireKind":"fire_api","inputText":"daily plan @ <ISO>"}}' \
+     "${VERCEL_BASE_URL}/api/internal/postgres/query"
+   ```
+   Capture the returned `rows[0].id` — that's your `${ROUTINE_RUN_ID}`. Use it in step 11 (and in any update/insert that needs it). If this call 5xx's: send a Telegram alert and exit 1; do NOT proceed (audit-or-abort).
+
+2. **Calendar fetch via MCP connector** — call the ForexFactory MCP tool that your routine has attached. This is a Claude tool-use call, not Bash+curl. The exact tool name depends on the connector configuration (look for `mcp__*` in your available tools). Read today's high-impact events for the relevant currencies (EUR, GBP, USD).
+   - If the connector is missing or fails: send Telegram warning (`"CALENDAR DEGRADED — operator must attach the ForexFactory MCP connector to this routine; using conservative defaults"`) and proceed with London 08:00–12:00 GMT and NY 13:30–17:00 GMT defaults. Do NOT abort the plan.
+
+3. **News fetch** (Bash):
    ```bash
    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-     "${VERCEL_BASE_URL}/api/internal/ffcal/today"
+     "${VERCEL_BASE_URL}/api/internal/news/last-24h"
    ```
-   If 5xx: send a Telegram warning (`"CALENDAR DEGRADED — using last-known schedule heuristic"`) and proceed with conservative defaults (London 08:00–12:00 GMT, NY 13:30–17:00 GMT).
-3. **Active pairs** (Bash):
+   Returns `{ news_count, time_window_start, markdown }`. Use the `markdown` content as the {NEWS_MARKDOWN} substitution your reasoning prompt expects. If 5xx or news_count===0: log to stderr and proceed (news is enrichment, not blocking).
+
+4. **Active pairs** (Bash):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
      -d '{"name":"select_active_pairs","params":{"tenantId":1}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-   If 5xx: send Telegram alert `"POSTGRES UNREACHABLE — plan generation aborted"` and exit 1. Do NOT insert any pair_schedules rows (constitution §3 audit-or-abort).
-4. **Reason**: produce the `output.sessions` shape per the verbatim system prompt OUTPUT section. For each pair × session, decide step-in/step-out (or empty).
-5. **Insert pair_schedules** (Bash, once per `(pair, session)` decision):
+   If 5xx: settle audit (`update_routine_run` with `status="failed"`, `failureReason="postgres unreachable on select_active_pairs"`), send Telegram alert `"POSTGRES UNREACHABLE — plan generation aborted"`, and exit 1. Do NOT insert any pair_schedules rows (constitution §3 audit-or-abort).
+
+5. **Reason**: produce the `output.sessions` shape per the verbatim system prompt OUTPUT section. For each pair × session, decide step-in/step-out (or empty).
+
+6. *(Step 6 reserved — was previously "schedule"; reordering keeps the doc readable.)*
+
+7. **Insert pair_schedules** (Bash, once per `(pair, session)` decision):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
-     -d '{"name":"insert_pair_schedule","params":{...see schema above...}}' \
+     -d '{"name":"insert_pair_schedule","params":{...see schema above..., "plannerRunId": ${ROUTINE_RUN_ID}}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-   Capture each returned `id`.
-6. **Schedule the Executors** (Bash, once per non-empty schedule):
+   Capture each returned `id`. The `plannerRunId` is the `${ROUTINE_RUN_ID}` from step 1.
+
+8. **Schedule the Executors** (Bash, once per non-empty schedule):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
@@ -143,32 +173,38 @@ The `postgres/query` route accepts a named-query allowlist; raw SQL is not accep
      "${VERCEL_BASE_URL}/api/internal/anthropic/schedule"
    ```
    Capture each returned `scheduledOneOffId`. If a single pair fails (5xx): continue with remaining pairs (don't abort the whole plan); record the failure on its `pair_schedules` row by calling `update_pair_schedule_one_off_id` with `scheduledOneOffId=null`.
-7. **Persist the binding** (Bash, once per scheduled Executor):
+
+9. **Persist the binding** (Bash, once per scheduled Executor):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
      -d '{"name":"update_pair_schedule_one_off_id","params":{"tenantId":1,"id":<schedule_id>,"scheduledOneOffId":"<sched_xxx>"}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-8. **Telegram digest** (Bash, one fire-and-forget):
-   ```bash
-   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-     -H "content-type: application/json" \
-     -d '{"chat_id":<your_user_id>,"text":"Today plan: N pairs scheduled (...summary...)"}' \
-     "${VERCEL_BASE_URL}/api/internal/telegram/send"
-   ```
-9. **Audit settle** (Bash, MUST be your final action):
-   ```bash
-   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-     -H "content-type: application/json" \
-     -d '{"name":"update_routine_run","params":{"tenantId":1,"id":<routine_run_id>,"status":"completed","outputJson":{"schedulesCreated":N}}}' \
-     "${VERCEL_BASE_URL}/api/internal/postgres/query"
-   ```
-   Per constitution §3 audit-or-abort, this settle is mandatory. If you exit without it, orphan-detect will pick up the in-flight row in 5 minutes.
+
+10. **Telegram digest** (Bash, one fire-and-forget). `chat_id` is OPTIONAL — if you omit it, the route falls back to the operator's allowlist[0] (or the `OPERATOR_CHAT_ID` env override if the operator has set one):
+    ```bash
+    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      -H "content-type: application/json" \
+      -d '{"text":"Today plan: N pairs scheduled (...summary...)"}' \
+      "${VERCEL_BASE_URL}/api/internal/telegram/send"
+    ```
+    Response includes `{ ok, telegramMessageId, chatId }` — `chatId` confirms which chat actually received it.
+
+11. **Audit settle** (Bash, MUST be your final action):
+    ```bash
+    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      -H "content-type: application/json" \
+      -d '{"name":"update_routine_run","params":{"tenantId":1,"id":${ROUTINE_RUN_ID},"status":"completed","outputJson":{"schedulesCreated":N}}}' \
+      "${VERCEL_BASE_URL}/api/internal/postgres/query"
+    ```
+    Per constitution §3 audit-or-abort, this settle is mandatory. If you exit without it, orphan-detect will pick up the in-flight row in 5 minutes and surface it in the dashboard.
 
 ### Failure-mode reminders
 
 - Internal-API 401 → `INTERNAL_API_TOKEN` mismatch in your Cloud Env. Send a Telegram alert (which itself will fail) and exit 1. The dashboard heartbeat detects within 5 minutes.
+- Internal-API 501 from an `/api/internal/ffcal/*` path → you should NOT be calling that path; it's deprecated. Use the FFCal MCP connector instead (see step 2).
 - All Telegram failures: log to stderr, do not abort. Telegram is best-effort.
-- Postgres 5xx in step 3 (or any subsequent step): per constitution §3, abort immediately.
+- Postgres 5xx in step 1 (insert_routine_run): cannot proceed without an audit row → exit 1 immediately.
+- Postgres 5xx in step 4 or any subsequent step: per constitution §3, settle audit to `failed` with a `failureReason` and exit 1. Do NOT insert any partial pair_schedules.
 - Use `curl -fsS` (`--fail`) so non-2xx becomes a non-zero exit you can detect in Bash.

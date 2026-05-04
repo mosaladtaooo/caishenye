@@ -439,17 +439,26 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
 
 | Method | Path | When |
 |---|---|---|
-| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Step 1 (stale-check), step 8 (executor_reports), step 10 (audit settle) |
-| GET | `${VERCEL_BASE_URL}/api/internal/mt5/account` | Step 2 — balance/equity |
-| GET | `${VERCEL_BASE_URL}/api/internal/mt5/positions` | Step 3 — current open book |
-| GET | `${VERCEL_BASE_URL}/api/internal/mt5/candles?symbol=&timeframe=&count=` | Step 4 — multi-timeframe technical data |
-| POST | `${VERCEL_BASE_URL}/api/internal/mt5/orders` | Step 6 — order placement |
-| POST | `${VERCEL_BASE_URL}/api/internal/blob/upload` | Step 7 — HTML report upload |
-| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 9 — per-trade digest |
+| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Step 1 (open audit), step 2 (stale-check), step 9 (executor_reports), step 11 (audit settle) |
+| GET | `${VERCEL_BASE_URL}/api/internal/mt5/account` | Step 3 — balance/equity (proxies to /api/v1/account/info) |
+| GET | `${VERCEL_BASE_URL}/api/internal/mt5/positions` | Step 4 — current open book (proxies to /api/v1/positions[/symbol/{sym}]) |
+| GET | `${VERCEL_BASE_URL}/api/internal/mt5/candles?symbol=&timeframe=&count=` | Step 5 — multi-timeframe technical data (proxies to /api/v1/market/candles/latest) |
+| POST | `${VERCEL_BASE_URL}/api/internal/mt5/orders` | Step 7 — order placement (proxies to /api/v1/order/market) |
+| POST | `${VERCEL_BASE_URL}/api/internal/blob/upload` | Step 8 — HTML report upload |
+| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 10 — per-trade digest |
 
 ### Numbered call flow (your work loop)
 
-1. **Pre-fire stale-check** (R3 — first action, before any side-effecting call):
+1. **Open your audit row** — your FIRST action (constitution §3 audit-or-abort), before any other call:
+   ```bash
+   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     -H "content-type: application/json" \
+     -d '{"name":"insert_routine_run","params":{"tenantId":1,"routineName":"executor","routineFireKind":"scheduled_one_off","pair":"<pair from user message>","sessionWindow":"<EUR|NY|ASIA from user message>","inputText":"<one-line trigger summary>"}}' \
+     "${VERCEL_BASE_URL}/api/internal/postgres/query"
+   ```
+   Capture the returned `rows[0].id` — that's your `${ROUTINE_RUN_ID}`. Use it in step 9 (`routineRunId`) and step 11 (`id`).
+
+2. **Pre-fire stale-check** (R3 — second action, before any side-effecting call):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
@@ -457,24 +466,27 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
    Find the row whose `id` matches `pair_schedule_id` from the user message. If `status != 'scheduled'` OR `scheduled_one_off_id != ${ANTHROPIC_ONE_OFF_ID}` OR no row found:
-   - Call `update_routine_run` with `outputJson={ "reason": "stale-plan-noop" }` and `status="completed"`.
+   - Call `update_routine_run` with `id=${ROUTINE_RUN_ID}`, `outputJson={ "reason": "stale-plan-noop" }`, and `status="completed"`.
    - **Exit 0. NO MT5 call. NO Telegram. NO order.**
 
    This satisfies AC-018-2-b. The dashboard's force-replan creates the cancellation-vs-fire race that this check resolves cleanly.
 
-2. **Account snapshot**:
+3. **Account snapshot**:
    ```bash
    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      "${VERCEL_BASE_URL}/api/internal/mt5/account"
    ```
 
-3. **Open positions** (current book):
+4. **Open positions** (current book — full list, or `?symbol=<pair>` for filtered):
    ```bash
    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      "${VERCEL_BASE_URL}/api/internal/mt5/positions"
+   # or filtered to your pair:
+   curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/mt5/positions?symbol=<pair>"
    ```
 
-4. **Multi-timeframe candles** — three sequential GETs (the verbatim system prompt mandates the bar counts):
+5. **Multi-timeframe candles** — sequential GETs (the verbatim system prompt mandates the bar counts):
    ```bash
    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      "${VERCEL_BASE_URL}/api/internal/mt5/candles?symbol=<pair>&timeframe=D1&count=250"
@@ -485,11 +497,11 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      "${VERCEL_BASE_URL}/api/internal/mt5/candles?symbol=<pair>&timeframe=M15&count=288"
    ```
-   For XAU/USD, `<pair>` is `XAUUSD` (NOT `XAUUSDF` — see user-message warning).
+   For XAU/USD, `<pair>` is `XAUUSD` (NOT `XAUUSDF` — see user-message warning). The proxy translates `symbol` → upstream `symbol_name` and routes to `/api/v1/market/candles/latest`.
 
-5. **MSCP reasoning** — apply the verbatim Multi-Scalar Coherence Protocol over the candles + news. Decide TRADE (with side/volume/SL/TP per the SL+ATR mandate) or NO_TRADE.
+6. **MSCP reasoning** — apply the verbatim Multi-Scalar Coherence Protocol over the candles + news. Decide TRADE (with side/volume/SL/TP per the SL+ATR mandate) or NO_TRADE.
 
-6. **Order placement (only if TRADE)**:
+7. **Order placement (only if TRADE)** — Routine-facing body uses `side` (buy|sell), `sl`, `tp`; the proxy translates to upstream `type` (BUY|SELL), `stop_loss`, `take_profit` and routes to `/api/v1/order/market`:
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
@@ -497,7 +509,7 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
      "${VERCEL_BASE_URL}/api/internal/mt5/orders"
    ```
 
-7. **HTML report upload** — assemble a self-contained report (chart inputs as inline data, full reasoning trace, decision rationale) and upload:
+8. **HTML report upload** — assemble a self-contained report (chart inputs as inline data, full reasoning trace, decision rationale) and upload:
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
@@ -506,36 +518,39 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
    ```
    Capture the returned `url`.
 
-8. **Postgres write — executor_reports**:
+9. **Postgres write — executor_reports**:
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
-     -d '{"name":"insert_executor_report","params":{"tenantId":1,"pair":"<pair>","session":"<session>","reportMdBlobUrl":"<url>","summaryMd":"<one-paragraph fallback>","actionTaken":"TRADE|NO_TRADE","routineRunId":<your routine_run_id>}}' \
+     -d '{"name":"insert_executor_report","params":{"tenantId":1,"pair":"<pair>","session":"<session>","reportMdBlobUrl":"<url>","summaryMd":"<one-paragraph fallback>","actionTaken":"TRADE|NO_TRADE","routineRunId":${ROUTINE_RUN_ID}}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
 
-9. **Telegram per-trade digest**:
-   ```bash
-   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-     -H "content-type: application/json" \
-     -d '{"chat_id":<your_user_id>,"text":"<pair> <session>: <decision>; <ticket if any>; <blob_url>"}' \
-     "${VERCEL_BASE_URL}/api/internal/telegram/send"
-   ```
-
-10. **Audit settle** (MUST be your final action):
+10. **Telegram per-trade digest**. `chat_id` is OPTIONAL — if you omit it, the route falls back to the operator's allowlist[0] (or the `OPERATOR_CHAT_ID` env override if the operator has set one):
     ```bash
     curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
       -H "content-type: application/json" \
-      -d '{"name":"update_routine_run","params":{"tenantId":1,"id":<routine_run_id>,"status":"completed","outputJson":{"decision":"TRADE|NO_TRADE","ticket":<id|null>,"blobUrl":"<url>"}}}' \
+      -d '{"text":"<pair> <session>: <decision>; <ticket if any>; <blob_url>"}' \
+      "${VERCEL_BASE_URL}/api/internal/telegram/send"
+    ```
+    Response includes `{ ok, telegramMessageId, chatId }` — `chatId` confirms which chat received it.
+
+11. **Audit settle** (MUST be your final action):
+    ```bash
+    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      -H "content-type: application/json" \
+      -d '{"name":"update_routine_run","params":{"tenantId":1,"id":${ROUTINE_RUN_ID},"status":"completed","outputJson":{"decision":"TRADE|NO_TRADE","ticket":<id|null>,"blobUrl":"<url>"}}}' \
       "${VERCEL_BASE_URL}/api/internal/postgres/query"
     ```
 
 ### Failure-mode reminders
 
-- **MT5 5xx on account/positions/candles**: the Vercel route already retries 2× with 10s backoff (EC-003-1). Final failure → send Telegram `"MT5 UNREACHABLE — pair <X> session aborted"` and exit 1 (audit settles to `failed` via step 10).
+- **MT5 5xx on account/positions/candles**: the Vercel route already retries 2× with 10s backoff (EC-003-1). Final failure → send Telegram `"MT5 UNREACHABLE — pair <X> session aborted"` and settle audit to `failed` via step 11 (`failureReason="mt5 unreachable in step <N>"`), then exit 1.
 - **MT5 5xx on order placement**: final failure → Telegram `"ORDER FAILED — manual intervention required: <pair> <side> <vol> sl=<sl> tp=<tp>"`. Operator intervenes manually if needed. Still settle audit to `failed`.
 - **Blob upload 5xx**: warn via Telegram but DO NOT fail the routine. Order is already placed; report is supplementary. Still call insert_executor_report with `reportMdBlobUrl=null` and `summaryMd` populated.
-- **Postgres 5xx in step 1**: cannot perform stale-check → Telegram `"POSTGRES UNREACHABLE — executor aborted pre-trade"` and exit 1. NO MT5 call (constitution §3 audit-or-abort).
-- **Postgres 5xx in step 8**: warn Telegram + Vercel-side stderr. Trade stands; orphan-detect picks up unsettled audit.
+- **Postgres 5xx on step 1 (insert_routine_run)**: cannot proceed without an audit row → Telegram alert and exit 1 immediately.
+- **Postgres 5xx in step 2 (stale-check)**: cannot determine plan validity → Telegram `"POSTGRES UNREACHABLE — executor aborted pre-trade"` and exit 1. Use `update_routine_run` only if step 1 succeeded; if step 2 itself was the failing call, the audit row exists and orphan-detect will reap it.
+- **Postgres 5xx in step 9**: warn Telegram + Vercel-side stderr. Trade stands; orphan-detect picks up unsettled audit if step 11 also fails.
+- **Internal-API 501** from any `/api/internal/ffcal/*` path → you should NOT be calling that path; FFCal access is via the MCP connector attached to the Planner routine, not via this Executor.
 - Internal-API 401 → `INTERNAL_API_TOKEN` mismatch in your Cloud Env. Send Telegram alert (will fail), exit 1.
 - Use `curl -fsS` (`--fail`) so non-2xx becomes a non-zero exit you can detect in Bash.
