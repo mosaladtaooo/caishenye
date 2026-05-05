@@ -143,18 +143,39 @@ $envBlock = ($envLines -join "`r`n")
 # ----- 2. Start the service ---------------------------------------------------
 
 Write-Host "Starting '$ServiceName'..."
-& $NssmPath start $ServiceName
-if ($LASTEXITCODE -ne 0) {
-    throw "nssm start failed with exit code $LASTEXITCODE. Check $LogDir\$ServiceName.err.log for details."
+# nssm start emits SERVICE_START_PENDING and exits non-zero while Windows is
+# still bringing the service up. That's not a fatal failure -- poll status
+# for up to 15 seconds before declaring failure. Suppress the start exit code
+# (using the same Continue-mode trick as the existence check).
+try {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $NssmPath start $ServiceName 2>$null | Out-Null
+} finally {
+    $ErrorActionPreference = $prevEAP
 }
 
-Start-Sleep -Seconds 2
+$status = ''
+$pollTimeout = 15
+for ($i = 0; $i -lt $pollTimeout; $i++) {
+    Start-Sleep -Seconds 1
+    try {
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $status = (& $NssmPath status $ServiceName 2>$null) -join ''
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+    if ($status -match 'SERVICE_RUNNING') {
+        break
+    }
+    Write-Host "  ...still $status (waited ${i}s)"
+}
 
-$status = & $NssmPath status $ServiceName
 Write-Host "Service status: $status"
 
-if ($status -notmatch "SERVICE_RUNNING") {
-    throw "Service failed to enter SERVICE_RUNNING state. Last status: $status. Check $LogDir\$ServiceName.err.log"
+if ($status -notmatch 'SERVICE_RUNNING') {
+    throw "Service failed to enter SERVICE_RUNNING state after ${pollTimeout}s. Last status: $status. Check $LogDir\$ServiceName.err.log for details (bun crash, missing claude CLI, etc.)."
 }
 
 Write-Host ""
