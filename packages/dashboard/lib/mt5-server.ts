@@ -42,7 +42,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function mt5Fetch(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   body: unknown,
   options: Mt5RequestOptions = {},
@@ -62,7 +62,7 @@ async function mt5Fetch(
         authorization: `Bearer ${bearer}`,
       };
       const init: RequestInit = { method, headers, signal: controller.signal };
-      if (method === 'POST') {
+      if (method === 'POST' || method === 'PUT') {
         headers['content-type'] = 'application/json';
         init.body = JSON.stringify(body ?? {});
       }
@@ -99,4 +99,16 @@ export async function mt5Post(
   options?: Mt5RequestOptions,
 ): Promise<unknown> {
   return mt5Fetch('POST', path, body, options);
+}
+
+export async function mt5Put(
+  path: string,
+  body: unknown,
+  options?: Mt5RequestOptions,
+): Promise<unknown> {
+  return mt5Fetch('PUT', path, body, options);
+}
+
+export async function mt5Delete(path: string, options?: Mt5RequestOptions): Promise<unknown> {
+  return mt5Fetch('DELETE', path, undefined, options);
 }

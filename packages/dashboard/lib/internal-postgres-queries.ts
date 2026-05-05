@@ -24,7 +24,7 @@ import { pairConfigs } from '@caishen/db/schema/pair-configs';
 import { pairSchedules } from '@caishen/db/schema/pair-schedules';
 import { routineRuns } from '@caishen/db/schema/routine-runs';
 import { telegramInteractions } from '@caishen/db/schema/telegram-interactions';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, lte } from 'drizzle-orm';
 
 export interface NamedQueryRequest {
   name: string;
@@ -180,6 +180,10 @@ const handlers: Record<string, (params: Record<string, unknown>) => Promise<Name
 
   // After Planner /schedules an Executor, persist the returned one_off_id on
   // the schedule row.
+  //
+  // Pre-v1.1: used by the Planner step 9 (since deprecated). v1.1+: also used
+  // by /api/cron/fire-due-executors for the unclaim path (set the column back
+  // to null when a fire fails so the next cron tick can retry).
   update_pair_schedule_one_off_id: async (params) => {
     const tenantId = readTenantId(params);
     const id = readNumber(params, 'id');
@@ -188,6 +192,93 @@ const handlers: Record<string, (params: Record<string, unknown>) => Promise<Name
     const updated = await db.drizzle
       .update(pairSchedules)
       .set({ scheduledOneOffId })
+      .where(and(eq(pairSchedules.tenantId, tenantId), eq(pairSchedules.id, id)))
+      .returning({ id: pairSchedules.id });
+    return { rows: updated, rowsAffected: updated.length };
+  },
+
+  // v1.1 cron-pivot — read pair_schedules rows that are DUE for the cron tick
+  // to fire. "Due" = status='scheduled' AND start_time_gmt has passed AND
+  // scheduled_one_off_id is still null (no claim yet). Caller passes the
+  // current ISO timestamp; route layer computes it.
+  //
+  // Look-back is bounded by `lookbackMinutes` (default 5) so the cron doesn't
+  // pick up ancient missed-window schedules — those should be operator-
+  // intervened, not auto-fired hours late.
+  //
+  // Per ADR-013 (v1.1 cascade edit): this is the read-side of the polling
+  // pattern that replaces the dead /api/internal/anthropic/schedule call.
+  select_pair_schedules_due_for_fire: async (params) => {
+    const tenantId = readTenantId(params);
+    const nowIso = readString(params, 'nowIso');
+    const lookbackMinutes = typeof params.lookbackMinutes === 'number' ? params.lookbackMinutes : 5;
+    const now = new Date(nowIso);
+    if (Number.isNaN(now.getTime())) throw new Error('nowIso must be a valid ISO timestamp');
+    const lookbackCutoff = new Date(now.getTime() - lookbackMinutes * 60_000);
+    const db = getTenantDb(tenantId);
+    const rows = await db.drizzle
+      .select()
+      .from(pairSchedules)
+      .where(
+        and(
+          eq(pairSchedules.tenantId, tenantId),
+          eq(pairSchedules.status, 'scheduled'),
+          isNull(pairSchedules.scheduledOneOffId),
+          lte(pairSchedules.startTimeGmt, now),
+        ),
+      )
+      .orderBy(asc(pairSchedules.startTimeGmt));
+    // Filter out ancient schedules (older than lookbackMinutes) — those are
+    // missed windows that should be operator-investigated, not auto-fired.
+    const fresh = rows.filter((r) => {
+      if (r.startTimeGmt === null) return false;
+      return new Date(r.startTimeGmt as unknown as string) >= lookbackCutoff;
+    });
+    return { rows: fresh };
+  },
+
+  // v1.1 cron-pivot — atomically claim a pair_schedules row for firing. The
+  // UPDATE-WHERE-IS-NULL-RETURNING pattern guarantees that two concurrent
+  // cron ticks can't double-fire the same row. The caller writes a
+  // claim-token (e.g., "claiming-<timestamp>-<pid>") to scheduled_one_off_id;
+  // if the UPDATE returns 0 rows the row was already claimed.
+  //
+  // After a successful upstream /fire, the caller MUST call
+  // update_pair_schedule_fired with the real session_id to settle the row.
+  // On /fire failure, the caller MUST call update_pair_schedule_one_off_id
+  // with scheduledOneOffId=null to release the claim for the next tick.
+  claim_pair_schedule_for_fire: async (params) => {
+    const tenantId = readTenantId(params);
+    const id = readNumber(params, 'id');
+    const claimToken = readString(params, 'claimToken');
+    const db = getTenantDb(tenantId);
+    const claimed = await db.drizzle
+      .update(pairSchedules)
+      .set({ scheduledOneOffId: claimToken })
+      .where(
+        and(
+          eq(pairSchedules.tenantId, tenantId),
+          eq(pairSchedules.id, id),
+          eq(pairSchedules.status, 'scheduled'),
+          isNull(pairSchedules.scheduledOneOffId),
+        ),
+      )
+      .returning({ id: pairSchedules.id });
+    return { rows: claimed, rowsAffected: claimed.length };
+  },
+
+  // v1.1 cron-pivot — settle a successfully-fired schedule. Sets
+  // scheduled_one_off_id to the real session_id from /fire's response and
+  // status='fired'. Idempotent against re-calls (the WHERE clause matches
+  // the prior 'scheduled' state).
+  update_pair_schedule_fired: async (params) => {
+    const tenantId = readTenantId(params);
+    const id = readNumber(params, 'id');
+    const scheduledOneOffId = readString(params, 'scheduledOneOffId');
+    const db = getTenantDb(tenantId);
+    const updated = await db.drizzle
+      .update(pairSchedules)
+      .set({ scheduledOneOffId, status: 'fired' })
       .where(and(eq(pairSchedules.tenantId, tenantId), eq(pairSchedules.id, id)))
       .returning({ id: pairSchedules.id });
     return { rows: updated, rowsAffected: updated.length };

@@ -9,7 +9,9 @@
     "./telegram-bot": "./src/telegram-bot.ts",
     "./planner": "./src/planner.ts",
     "./executor": "./src/executor.ts",
-    "./news": "./src/news.ts"
+    "./news": "./src/news.ts",
+    "./calendar": "./src/calendar.ts",
+    "./indicators": "./src/indicators.ts"
   },
   "scripts": {
     "tsc": "tsc --noEmit -p tsconfig.json",

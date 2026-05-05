@@ -78,12 +78,14 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
 
 | Method | Path | When |
 |---|---|---|
-| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Step 1 (open audit), step 4 (read pairs), step 7 (insert pair_schedules), step 9 (persist one_off_id), step 11 (audit settle) |
+| POST | `${VERCEL_BASE_URL}/api/internal/postgres/query` | Step 1 (open audit), step 4 (read pairs), step 7 (insert pair_schedules), step 9 (audit settle) |
+| GET | `${VERCEL_BASE_URL}/api/internal/ffcal/today?window=48&impact=medium` | Step 2 — economic calendar (48h forward; High+Medium+Holiday by default) |
 | GET | `${VERCEL_BASE_URL}/api/internal/news/last-24h` | Step 3 — 24h news context |
-| POST | `${VERCEL_BASE_URL}/api/internal/anthropic/schedule` | Step 8 — schedule per-pair Executors |
-| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 10 — daily digest |
+| POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 8 — daily digest |
 
-**ForexFactory (calendar) is NOT a proxy route.** Calendar access is via the **ForexFactory MCP connector** attached to your routine. Look in your available-tools list at runtime for tools whose names match `mcp__*` (the operator names the connector when configuring it; common names include `mcp__forexfactory__*`). Call those tools directly via Claude's tool-use mechanism, not via Bash+curl. The legacy `/api/internal/ffcal/today` proxy is **deprecated** and returns `501 Not Implemented` — do NOT call it.
+**Note on Executor scheduling (v1.1 — ADR-013)**: you DO NOT call `/api/internal/anthropic/schedule` (deprecated 501; Anthropic exposes no programmatic /schedule API). Instead, your only scheduling responsibility is to insert `pair_schedules` rows in `status='scheduled'` with the `start_time_gmt` you decided. An every-minute cron tick at `/api/cron/fire-due-executors` (run by GitHub Actions, calling the Vercel handler) reads due rows whose `start_time_gmt` has passed and fires the per-pair Executor via `/fire` API; it writes back `scheduled_one_off_id` (the returned session_id) and `status='fired'`. **No /fire calls from your side.**
+
+**Note on "ForexFactory MCP" in the verbatim prompt above**: the verbatim role text mentions a "ForexFactory MCP" tool. In v1.1 (this deployment) the calendar is delivered via Bash+curl through the `/api/internal/ffcal/today` proxy route, NOT via Claude's MCP connector mechanism. The Vercel route fetches the public ForexFactory weekly JSON feed and returns the same impact/currency/time/forecast data the MCP wrapped. Treat the verbatim "MCP" word as a synonym for "the calendar source"; use the Bash+curl recipe in step 2 below.
 
 ### Postgres query shapes you may use
 
@@ -131,10 +133,19 @@ The `postgres/query` route accepts a named-query allowlist; raw SQL is not accep
      -d '{"name":"insert_routine_run","params":{"tenantId":1,"routineName":"planner","routineFireKind":"fire_api","inputText":"daily plan @ <ISO>"}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-   Capture the returned `rows[0].id` — that's your `${ROUTINE_RUN_ID}`. Use it in step 11 (and in any update/insert that needs it). If this call 5xx's: send a Telegram alert and exit 1; do NOT proceed (audit-or-abort).
+   Capture the returned `rows[0].id` — that's your `${ROUTINE_RUN_ID}`. Use it in step 9 (and in any update/insert that needs it). If this call 5xx's: send a Telegram alert and exit 1; do NOT proceed (audit-or-abort).
 
-2. **Calendar fetch via MCP connector** — call the ForexFactory MCP tool that your routine has attached. This is a Claude tool-use call, not Bash+curl. The exact tool name depends on the connector configuration (look for `mcp__*` in your available tools). Read today's high-impact events for the relevant currencies (EUR, GBP, USD).
-   - If the connector is missing or fails: send Telegram warning (`"CALENDAR DEGRADED — operator must attach the ForexFactory MCP connector to this routine; using conservative defaults"`) and proceed with London 08:00–12:00 GMT and NY 13:30–17:00 GMT defaults. Do NOT abort the plan.
+2. **Calendar fetch via Vercel proxy** (Bash):
+   ```bash
+   curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/ffcal/today?window=48&impact=medium"
+   ```
+   Returns `{ event_count, time_window_start, time_window_end, markdown, events[], degraded }`. Each `events[]` entry has `{ title, currency, time_gmt, impact ('High'|'Medium'|'Low'|'Holiday'), forecast, previous }`. Use `markdown` for prompt-context rendering and `events[]` for programmatic per-currency filtering (EUR, GBP, USD relevant for your sessions).
+   - If the response has `degraded:true` (feed unreachable upstream): send Telegram warning (`"CALENDAR DEGRADED — ForexFactory feed unreachable; using conservative defaults"`) and proceed with London 08:00–12:00 GMT and NY 13:30–17:00 GMT defaults. Do NOT abort the plan.
+   - If the proxy returns 5xx: same handling — degraded path, conservative defaults, Telegram warning.
+   - Optional query params:
+     - `window=24` (24h forward) | `window=48` (default) | `window=72`
+     - `impact=high` (High only — Tier 1 events) | `impact=medium` (default — High+Medium+Holiday) | `impact=all`
 
 3. **News fetch** (Bash):
    ```bash
@@ -163,47 +174,30 @@ The `postgres/query` route accepts a named-query allowlist; raw SQL is not accep
      -d '{"name":"insert_pair_schedule","params":{...see schema above..., "plannerRunId": ${ROUTINE_RUN_ID}}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-   Capture each returned `id`. The `plannerRunId` is the `${ROUTINE_RUN_ID}` from step 1.
+   Capture each returned `id`. The `plannerRunId` is the `${ROUTINE_RUN_ID}` from step 1. **This is the ONLY scheduling action you take.** The cron tick at `/api/cron/fire-due-executors` (every minute) will pick up rows whose `start_time_gmt` has been reached, atomically claim them, fire the Executor via `/fire`, and write back `scheduled_one_off_id` + `status='fired'`. You do NOT call /schedule or /fire yourself.
 
-8. **Schedule the Executors** (Bash, once per non-empty schedule):
+8. **Telegram digest** (Bash, one fire-and-forget). `chat_id` is OPTIONAL — if you omit it, the route falls back to the operator's allowlist[0] (or the `OPERATOR_CHAT_ID` env override if the operator has set one):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
-     -d '{"routine":"executor","fire_at_iso":"<startTimeGmt>","body":{"pair_schedule_id":<id>,"pairCode":"<pair>"}}' \
-     "${VERCEL_BASE_URL}/api/internal/anthropic/schedule"
+     -d '{"text":"Today plan: N pairs scheduled (...summary...)"}' \
+     "${VERCEL_BASE_URL}/api/internal/telegram/send"
    ```
-   Capture each returned `scheduledOneOffId`. If a single pair fails (5xx): continue with remaining pairs (don't abort the whole plan); record the failure on its `pair_schedules` row by calling `update_pair_schedule_one_off_id` with `scheduledOneOffId=null`.
+   Response includes `{ ok, telegramMessageId, chatId }` — `chatId` confirms which chat actually received it.
 
-9. **Persist the binding** (Bash, once per scheduled Executor):
+9. **Audit settle** (Bash, MUST be your final action):
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
-     -d '{"name":"update_pair_schedule_one_off_id","params":{"tenantId":1,"id":<schedule_id>,"scheduledOneOffId":"<sched_xxx>"}}' \
+     -d '{"name":"update_routine_run","params":{"tenantId":1,"id":${ROUTINE_RUN_ID},"status":"completed","outputJson":{"schedulesCreated":N}}}' \
      "${VERCEL_BASE_URL}/api/internal/postgres/query"
    ```
-
-10. **Telegram digest** (Bash, one fire-and-forget). `chat_id` is OPTIONAL — if you omit it, the route falls back to the operator's allowlist[0] (or the `OPERATOR_CHAT_ID` env override if the operator has set one):
-    ```bash
-    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-      -H "content-type: application/json" \
-      -d '{"text":"Today plan: N pairs scheduled (...summary...)"}' \
-      "${VERCEL_BASE_URL}/api/internal/telegram/send"
-    ```
-    Response includes `{ ok, telegramMessageId, chatId }` — `chatId` confirms which chat actually received it.
-
-11. **Audit settle** (Bash, MUST be your final action):
-    ```bash
-    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-      -H "content-type: application/json" \
-      -d '{"name":"update_routine_run","params":{"tenantId":1,"id":${ROUTINE_RUN_ID},"status":"completed","outputJson":{"schedulesCreated":N}}}' \
-      "${VERCEL_BASE_URL}/api/internal/postgres/query"
-    ```
-    Per constitution §3 audit-or-abort, this settle is mandatory. If you exit without it, orphan-detect will pick up the in-flight row in 5 minutes and surface it in the dashboard.
+   Per constitution §3 audit-or-abort, this settle is mandatory. If you exit without it, orphan-detect will pick up the in-flight row in 5 minutes and surface it in the dashboard.
 
 ### Failure-mode reminders
 
 - Internal-API 401 → `INTERNAL_API_TOKEN` mismatch in your Cloud Env. Send a Telegram alert (which itself will fail) and exit 1. The dashboard heartbeat detects within 5 minutes.
-- Internal-API 501 from an `/api/internal/ffcal/*` path → you should NOT be calling that path; it's deprecated. Use the FFCal MCP connector instead (see step 2).
+- `/api/internal/ffcal/today` 5xx OR `degraded:true` body → calendar source is upstream-unreachable. Send Telegram warning and proceed with conservative session defaults (London 08:00–12:00 GMT, NY 13:30–17:00 GMT). Do NOT abort.
 - All Telegram failures: log to stderr, do not abort. Telegram is best-effort.
 - Postgres 5xx in step 1 (insert_routine_run): cannot proceed without an audit row → exit 1 immediately.
 - Postgres 5xx in step 4 or any subsequent step: per constitution §3, settle audit to `failed` with a `failureReason` and exit 1. Do NOT insert any partial pair_schedules.

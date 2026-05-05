@@ -1,7 +1,7 @@
 {
   "feature": "001-foundation-routines-channels-dashboard",
   "spec_version": 1,
-  "recorded_at": null,
+  "recorded_at": "2026-05-04T05:00:00Z",
   "_comment_recorded_at": "Set to ISO timestamp by spike runner once any spike completes. Until then the field is null and downstream tests treat all spike data as PENDING.",
   "spikes": {
     "AC-001-1": {
@@ -12,7 +12,7 @@
       "details": {
         "_comment": "Set by runSpike1 — flag_exists, cap_usage_before/after, cap_delta. Live run requires SPIKE_NOOP_ROUTINE_BEARER + 12-min wall clock."
       },
-      "notes": "PENDING — operator-side live run blocked until SPIKE_NOOP_ROUTINE_BEARER is captured. Anthropic docs (Context7 2026-05-03) document this as PASS, but the spec mandates code-level verification."
+      "notes": "PENDING — design rework needed. Original plan: Routine's TS runner calls Anthropic /schedule API. Reality (post-2026-05-04 UI inspection): Routines run Claude with a system prompt + connectors, not arbitrary TS. To test cap-exempt-via-/schedule, either (a) instruct Claude in Routine to use Bash+curl against Anthropic /schedule API, or (b) build a custom MCP wrapping /schedule. Defer to session 5e."
     },
     "AC-001-2": {
       "id": "AC-001-2",
@@ -22,17 +22,47 @@
       "details": {
         "_comment": "Set by runSpike2 — durations_ms (per-run array), max_relative_error (LLM vs Python ref), fr_013_skip flag. Live run requires Opus 4.7 1M API + ta-lib reference."
       },
-      "notes": "PENDING — drives FR-013 SKIP/BUILD decision (math threshold 1e-3) AND ADR-003 fallback (12-min duration ceiling)."
+      "notes": "PENDING — duration of one spike-noop session_01RddNtFkDDSU2tmM1XTJErj observable via session URL after Claude runs to completion. Math fidelity portion needs Opus reasoning over a known problem; defer."
     },
     "AC-001-3": {
       "id": "AC-001-3",
       "name": "/fire API + deployed-prompt READ probe",
-      "status": "PENDING",
-      "recorded_at": null,
+      "status": "IN_PROGRESS",
+      "recorded_at": "2026-05-04T05:00:00Z",
       "details": {
-        "_comment": "Set by runSpike3 — claude_code_session_id, claude_code_session_url, deployed_prompt_endpoint."
+        "fires": [
+          {
+            "n": 1,
+            "fired_at": "2026-05-04T05:00:00Z",
+            "http_status": 200,
+            "claude_code_session_id": "session_01RddNtFkDDSU2tmM1XTJErj",
+            "claude_code_session_url": "https://claude.ai/code/session_01RddNtFkDDSU2tmM1XTJErj",
+            "response_type": "routine_fire",
+            "claude_output": "spike-noop-ok 2026-05-04T00:00:00Z",
+            "claude_output_notes": "Claude obeyed prompt: printed sentinel + a date, no tool calls. Timestamp synthesized (LLMs lack live-clock without tool access; the prompt forbade tools). Not a bug — for real Planner/Executor we'll need a connector or Bash for clock access."
+          },
+          {
+            "n": 2,
+            "fired_at": "2026-05-04T05:08:00Z",
+            "http_status": 200,
+            "claude_code_session_id": "session_01TWWMGTdRxmSYdzBPWM6sUt",
+            "claude_code_session_url": "https://claude.ai/code/session_01TWWMGTdRxmSYdzBPWM6sUt",
+            "response_type": "routine_fire"
+          }
+        ],
+        "session_id_uniqueness_check": "PASS — fire #1 and #2 returned different session_ids, confirming each /fire creates a fresh Claude session. The 'Resumed session' label in the Claude Code UI is a viewer-side metaphor for navigating to a stored session URL, not server-side reuse.",
+        "headers_required": [
+          "authorization: Bearer ${SPIKE_NOOP_ROUTINE_BEARER}",
+          "anthropic-version: 2023-06-01",
+          "anthropic-beta: experimental-cc-routine-2026-04-01",
+          "content-type: application/json"
+        ],
+        "body": "{}",
+        "stability_runs_remaining": 8,
+        "deployed_prompt_endpoint": null,
+        "_comment_deployed_prompt_endpoint": "Spike 3 also probes whether Anthropic exposes a GET endpoint for the routine's deployed system prompt. Not yet tested."
       },
-      "notes": "PENDING — drives `deployed_prompt_endpoint` field below (Tier 2 prompt-preservation gate)."
+      "notes": "PARTIAL — 2 of 10 stability fires complete + 200. Critical clarification logged: each /fire creates a fresh session_id (verified empirically via fires #1 + #2). Initial 400 was 'anthropic-version: header is required' — required EVEN WITH the routines-beta header. AC fully PASSes when N>=10 sequential fires hit 200 + deployed_prompt_endpoint resolved one way or the other."
     },
     "AC-001-4": {
       "id": "AC-001-4",

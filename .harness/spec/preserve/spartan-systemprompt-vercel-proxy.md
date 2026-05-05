@@ -443,9 +443,19 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
 | GET | `${VERCEL_BASE_URL}/api/internal/mt5/account` | Step 3 — balance/equity (proxies to /api/v1/account/info) |
 | GET | `${VERCEL_BASE_URL}/api/internal/mt5/positions` | Step 4 — current open book (proxies to /api/v1/positions[/symbol/{sym}]) |
 | GET | `${VERCEL_BASE_URL}/api/internal/mt5/candles?symbol=&timeframe=&count=` | Step 5 — multi-timeframe technical data (proxies to /api/v1/market/candles/latest) |
-| POST | `${VERCEL_BASE_URL}/api/internal/mt5/orders` | Step 7 — order placement (proxies to /api/v1/order/market) |
+| GET | `${VERCEL_BASE_URL}/api/internal/ffcal/today?window=24&impact=medium` | Step 5b — economic calendar (24h forward by default for executor's intraday horizon) |
+| GET | `${VERCEL_BASE_URL}/api/internal/indicators?indicator=&symbol=&timeframe=&time_period=` | Step 5c — TwelveData technical indicators (ATR mandatory per the SL+ATR-buffer rule; Stoch %K/%D + RSI required by the verbatim 4H/1H sections) |
+| POST | `${VERCEL_BASE_URL}/api/internal/mt5/orders` | Step 7a — open new market order (proxies to /api/v1/order/market) |
+| PATCH | `${VERCEL_BASE_URL}/api/internal/mt5/positions/{ticket_id}` | Step 7b — modify SL/TP on an open position (proxies to PUT /api/v1/positions/{id}) |
+| DELETE | `${VERCEL_BASE_URL}/api/internal/mt5/positions/{ticket_id}` | Step 7c — close one specific position (proxies to DELETE /api/v1/positions/{id}) |
+| DELETE | `${VERCEL_BASE_URL}/api/internal/mt5/positions/by-symbol/{symbol}` | Step 7d — close ALL open positions on this pair (used at session-end to flatten before the next session per verbatim "ALL EURO/London … cleared before US Session Start") |
+| POST | `${VERCEL_BASE_URL}/api/internal/mt5/orders/pending` | Step 7e — place LIMIT/STOP pending order (verbatim "PLACE LIMIT/STOP ORDER IF the CMP has moved too far"; proxies to /api/v1/order/pending) |
+| DELETE | `${VERCEL_BASE_URL}/api/internal/mt5/orders/pending/{ticket_id}` | Step 7f — cancel ONE pending order by id (used when a previously-placed pending becomes invalid mid-session) |
+| DELETE | `${VERCEL_BASE_URL}/api/internal/mt5/orders/pending/by-symbol/{symbol}` | Step 7g — cancel ALL pending orders on this pair (companion to 7d at session-end) |
 | POST | `${VERCEL_BASE_URL}/api/internal/blob/upload` | Step 8 — HTML report upload |
 | POST | `${VERCEL_BASE_URL}/api/internal/telegram/send` | Step 10 — per-trade digest |
+
+**Note on "ForexFactory MCP" in the verbatim prompt above**: the verbatim §"Upcoming Volatility Events" section says "USE ForexFactory MCP". In v1.1 the calendar is delivered via Bash+curl through `/api/internal/ffcal/today`, NOT via Claude's MCP connector. Same data (title/currency/time/impact/forecast/previous), different transport. Use the Bash+curl recipe in step 5b.
 
 ### Numbered call flow (your work loop)
 
@@ -499,15 +509,90 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
    ```
    For XAU/USD, `<pair>` is `XAUUSD` (NOT `XAUUSDF` — see user-message warning). The proxy translates `symbol` → upstream `symbol_name` and routes to `/api/v1/market/candles/latest`.
 
-6. **MSCP reasoning** — apply the verbatim Multi-Scalar Coherence Protocol over the candles + news. Decide TRADE (with side/volume/SL/TP per the SL+ATR mandate) or NO_TRADE.
+5b. **Economic calendar fetch** (Bash, before MSCP reasoning — required by the verbatim §"Upcoming Volatility Events" section):
+    ```bash
+    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      "${VERCEL_BASE_URL}/api/internal/ffcal/today?window=24&impact=medium"
+    ```
+    Returns `{ event_count, time_window_start, time_window_end, markdown, events[], degraded }`. Filter `events[]` to your pair's two currencies (e.g. for EUR/USD → events with `currency` ∈ {EUR, USD}). Use this for intraday volatility-window awareness — quarantine the 15–30 min around High-impact events for those currencies (per the verbatim "Market Digestion Principle").
+    - If `degraded:true` OR proxy 5xx: log to stderr and proceed with MSCP reasoning using technicals only. Do NOT abort the executor — the calendar is enrichment for risk-quarantine timing, not a hard gate.
+    - Default `window=24` is right for executor's intraday horizon. Use `window=48` only if you need explicit lookahead beyond today's session.
 
-7. **Order placement (only if TRADE)** — Routine-facing body uses `side` (buy|sell), `sl`, `tp`; the proxy translates to upstream `type` (BUY|SELL), `stop_loss`, `take_profit` and routes to `/api/v1/order/market`:
+5c. **Technical indicators via TwelveData** (Bash, REQUIRED by the verbatim sections — Stoch %K/%D + RSI in the 4H/1H rules; ATR is MANDATORY for the SL+ATR-buffer mandate):
+    ```bash
+    # ATR for SL sizing (mandatory; pair-volatility tier mandates 2.0–3.5x multiplier)
+    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      "${VERCEL_BASE_URL}/api/internal/indicators?indicator=atr&symbol=<pair>&timeframe=H1&time_period=14"
+    # RSI on the 4H + 1H per the verbatim momentum-assessment rules
+    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      "${VERCEL_BASE_URL}/api/internal/indicators?indicator=rsi&symbol=<pair>&timeframe=H4&time_period=14"
+    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      "${VERCEL_BASE_URL}/api/internal/indicators?indicator=rsi&symbol=<pair>&timeframe=H1&time_period=14"
+    # Stochastic on 4H per the verbatim "Stochastic Oscillator Analysis" rule
+    curl -fsS -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+      "${VERCEL_BASE_URL}/api/internal/indicators?indicator=stoch&symbol=<pair>&timeframe=H4"
+    ```
+    Returns `{ indicator, symbol, interval, values[], meta, degraded, error_message? }`. `values` is the upstream TwelveData array verbatim — each indicator has its own column shape (RSI: `rsi`; ATR: `atr`; Stoch: `slow_k`, `slow_d`; MACD: `macd`, `macd_signal`, `macd_hist`; etc.).
+    - **Indicator allowlist**: ema | rsi | macd | adx | bbands | stoch | atr | vwap.
+    - **Symbol form**: pass either "EUR/USD" or "EURUSD" (route auto-slashes 6-letter forex/metals; non-forex strings pass through).
+    - **Timeframe form**: MT5 form (M1|M5|M15|M30|H1|H4|D1|W1|MN1). Route translates to TwelveData's interval form server-side.
+    - **time_period**: indicator-specific (RSI 14, ATR 14, Stoch %K 14, EMA 50/200, etc.). Optional — TwelveData has sane defaults.
+    - **outputsize**: how many historical points to return. Optional, default 30, max 5000.
+    - **Degraded path**: if `degraded:true` OR proxy 5xx → fall back to inline-computing the indicator from the candle OHLC array (you have it from step 5). Do NOT abort. Note in your reasoning trace that the indicator was inline-approximated rather than TwelveData-canonical.
+
+6. **MSCP reasoning** — apply the verbatim Multi-Scalar Coherence Protocol over the candles + news + calendar + indicators. Decide TRADE (with side/volume/SL/TP per the SL+ATR mandate) or NO_TRADE.
+
+7. **Position-action step** — pick ONE based on your MSCP decision and the existing book (you read step 4):
+
+   **7a. Open NEW market order** (the verbatim "EXECUTE MARKET ORDER IF" branch). Routine-facing body uses `side` (buy|sell), `sl`, `tp`; the proxy translates to upstream `type` (BUY|SELL), `stop_loss`, `take_profit` and routes to `/api/v1/order/market`:
    ```bash
    curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
      -H "content-type: application/json" \
      -d '{"symbol":"<pair>","side":"buy|sell","volume":<lots>,"sl":<price>,"tp":<price>,"comment":"caishen-<pair_schedule_id>"}' \
      "${VERCEL_BASE_URL}/api/internal/mt5/orders"
    ```
+
+   **7b. Modify SL/TP on EXISTING position** (the verbatim "optimize the current pair's existing order's setting to MAX win rate and PROFIT TAKING" branch — e.g., move SL to breakeven once 1R achieved, trail TP). Body must include at least one of `sl`, `tp`. Route translates to upstream PUT with `stop_loss`/`take_profit`:
+   ```bash
+   curl -fsS -X PATCH -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     -H "content-type: application/json" \
+     -d '{"sl":<new_price>,"tp":<new_price>}' \
+     "${VERCEL_BASE_URL}/api/internal/mt5/positions/<ticket_id>"
+   ```
+
+   **7c. Close ONE specific position** (when MSCP decision is "exit early — invalidation triggered" but you want to keep other positions on the pair):
+   ```bash
+   curl -fsS -X DELETE -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/mt5/positions/<ticket_id>"
+   ```
+
+   **7d. Close ALL positions on this pair** (session-end flatten per the verbatim "ALL EURO/London Session's trades will be cleared before US Session Start" rule, OR full risk-off when black-swan recognition triggers mid-session). Idempotent — returns `closed_count:0` if nothing to close:
+   ```bash
+   curl -fsS -X DELETE -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/mt5/positions/by-symbol/<pair>"
+   ```
+
+   **7e. Place LIMIT/STOP pending order** (the verbatim "PLACE LIMIT/STOP ORDER IF the CMP has moved too far" branch — when MSCP says enter but the current price is past your ideal entry, place a pending at the better price and let the market come to you). MT5 determines limit-vs-stop from `price` relative to current market (BUY below market = LIMIT; BUY above = STOP; SELL above = LIMIT; SELL below = STOP):
+   ```bash
+   curl -fsS -X POST -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     -H "content-type: application/json" \
+     -d '{"symbol":"<pair>","side":"buy|sell","volume":<lots>,"price":<entry>,"sl":<price>,"tp":<price>,"comment":"caishen-pending-<pair_schedule_id>"}' \
+     "${VERCEL_BASE_URL}/api/internal/mt5/orders/pending"
+   ```
+
+   **7f. Cancel ONE pending order** (when a previously-placed pending becomes invalid — e.g., the structural level it was waiting at got broken):
+   ```bash
+   curl -fsS -X DELETE -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/mt5/orders/pending/<ticket_id>"
+   ```
+
+   **7g. Cancel ALL pending orders on this pair** (companion to 7d at session-end; un-filled pendings should also be cleared so the next session starts fresh):
+   ```bash
+   curl -fsS -X DELETE -H "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+     "${VERCEL_BASE_URL}/api/internal/mt5/orders/pending/by-symbol/<pair>"
+   ```
+
+   **NO_TRADE branch**: skip 7a–7g entirely. Proceed to step 8 (report upload) with `actionTaken="NO_TRADE"`. The verbatim "Do nothing, remain flat IF ALL analysis is opposite of trade action" rule.
 
 8. **HTML report upload** — assemble a self-contained report (chart inputs as inline data, full reasoning trace, decision rationale) and upload:
    ```bash
@@ -547,10 +632,17 @@ Your `${DEFAULT_TENANT_ID}` is also injected; for v1 it is `1`.
 
 - **MT5 5xx on account/positions/candles**: the Vercel route already retries 2× with 10s backoff (EC-003-1). Final failure → send Telegram `"MT5 UNREACHABLE — pair <X> session aborted"` and settle audit to `failed` via step 11 (`failureReason="mt5 unreachable in step <N>"`), then exit 1.
 - **MT5 5xx on order placement**: final failure → Telegram `"ORDER FAILED — manual intervention required: <pair> <side> <vol> sl=<sl> tp=<tp>"`. Operator intervenes manually if needed. Still settle audit to `failed`.
+- **MT5 5xx on PATCH /positions/{id}** (modify SL/TP): final failure → Telegram `"POSITION MODIFY FAILED — ticket=<id> intended sl=<sl> tp=<tp>; broker stops still at original levels"`. Settle audit to `failed`. The position is still open at its prior SL/TP — broker-side risk is unchanged, just not improved.
+- **MT5 5xx on DELETE /positions/{id}**: final failure → Telegram `"POSITION CLOSE FAILED — ticket=<id> still open; manual broker intervention required"`. Settle audit to `failed`. Position remains open.
+- **MT5 5xx on DELETE /positions/by-symbol/{symbol}**: final failure → Telegram `"SESSION-FLATTEN FAILED — <symbol> positions still open; manual close required before next session"`. Settle audit to `failed`. Critical — the next session's executor will see leftover positions and may misjudge risk.
+- **MT5 5xx on POST /orders/pending**: final failure → Telegram `"PENDING ORDER FAILED — <pair> <side> <vol>@<price> sl=<sl> tp=<tp> NOT placed; manual entry needed if MSCP entry still valid"`. Settle audit to `failed`.
+- **MT5 5xx on DELETE /orders/pending/{id}** or `/by-symbol/{symbol}`: final failure → Telegram `"PENDING CANCEL FAILED — pendings on <pair> still active; if intended to invalidate the entry, manual cancel required"`. Settle audit to `failed`.
 - **Blob upload 5xx**: warn via Telegram but DO NOT fail the routine. Order is already placed; report is supplementary. Still call insert_executor_report with `reportMdBlobUrl=null` and `summaryMd` populated.
 - **Postgres 5xx on step 1 (insert_routine_run)**: cannot proceed without an audit row → Telegram alert and exit 1 immediately.
 - **Postgres 5xx in step 2 (stale-check)**: cannot determine plan validity → Telegram `"POSTGRES UNREACHABLE — executor aborted pre-trade"` and exit 1. Use `update_routine_run` only if step 1 succeeded; if step 2 itself was the failing call, the audit row exists and orphan-detect will reap it.
 - **Postgres 5xx in step 9**: warn Telegram + Vercel-side stderr. Trade stands; orphan-detect picks up unsettled audit if step 11 also fails.
-- **Internal-API 501** from any `/api/internal/ffcal/*` path → you should NOT be calling that path; FFCal access is via the MCP connector attached to the Planner routine, not via this Executor.
+- **`/api/internal/ffcal/today` 5xx OR `degraded:true` body**: log to stderr and proceed with technicals only. Calendar is enrichment for volatility-window quarantine, NOT a hard gate. Do NOT abort the executor.
+- **`/api/internal/indicators` 5xx OR `degraded:true` body**: fall back to inline-computing the indicator from candle OHLC (e.g., ATR via Wilder's smoothing on the 14 most recent True Ranges; RSI via 14-period gain/loss ratio). Note in your reasoning trace that the indicator was approximated rather than TwelveData-canonical. Do NOT abort.
+- **`/api/internal/indicators` 500 with "TWELVEDATA_API_KEY missing"**: server config bug — Telegram-alert the operator (`"INDICATORS DEGRADED — operator must set TWELVEDATA_API_KEY in Vercel env"`) and proceed with inline-computed approximations.
 - Internal-API 401 → `INTERNAL_API_TOKEN` mismatch in your Cloud Env. Send Telegram alert (will fail), exit 1.
 - Use `curl -fsS` (`--fail`) so non-2xx becomes a non-zero exit you can detect in Bash.
