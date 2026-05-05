@@ -79,8 +79,20 @@ if (-not (Test-Path $LogDir)) {
 
 # ----- 1. Install or reconfigure the service ---------------------------------
 
-$existing = & $NssmPath status $ServiceName 2>&1
-$serviceExists = ($LASTEXITCODE -eq 0)
+# NSSM 'status' for a non-existent service writes "Can't open service!" to
+# stderr and exits non-zero. Under $ErrorActionPreference='Stop', the 2>&1
+# stream merge wraps that stderr line as a NativeCommandError that throws.
+# Wrap in try/catch + temp $ErrorActionPreference='Continue' so we can
+# branch cleanly on $LASTEXITCODE.
+$serviceExists = $false
+try {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & $NssmPath status $ServiceName 2>$null | Out-Null
+    $serviceExists = ($LASTEXITCODE -eq 0)
+} finally {
+    $ErrorActionPreference = $prevEAP
+}
 
 if ($serviceExists) {
     Write-Host "Service '$ServiceName' already exists; stopping for reconfigure..."
