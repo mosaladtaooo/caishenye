@@ -1,0 +1,58 @@
+# cron-fire-due-executors — fires every 1 min (best-effort; GH Actions cron
+# has documented up-to-15-min jitter, acceptable for SPARTAN intraday session
+# starts where the verbatim 15–30 min post-news buffer absorbs minor lateness).
+#
+# Curls the Vercel-deployed /api/cron/fire-due-executors handler. The handler
+# polls pair_schedules for status='scheduled' rows whose start_time_gmt has
+# been reached, atomically claims each, and POSTs Anthropic /v1/claude_code/
+# routines/{executor_id}/fire to fire the per-pair Executor.
+#
+# Per ADR-013 (v1.1 cascade edit 2026-05-05): replaces the dead
+# /api/internal/anthropic/schedule call (Anthropic exposes no programmatic
+# /schedule API). Mirrors the same GH-Actions-cron pattern as
+# cron-channels-health.yml + cron-synthetic-ping.yml (per AC-005-2 amendment),
+# bypassing Vercel Hobby's sub-daily cron block.
+#
+# Required GitHub repo Secrets:
+#   - CRON_SECRET            — same value as the Vercel project env var
+#                              (already set for synthetic-ping)
+#   - VERCEL_DEPLOYMENT_URL  — full base URL, e.g. https://caishenv2.vercel.app
+#                              (already set for synthetic-ping)
+#
+# No-op behavior: when no rows are due, handler returns 200
+# {ok:true,dueCount:0,results:[]}. Fast path; no DB-write.
+
+name: cron-fire-due-executors
+
+on:
+  schedule:
+    - cron: '* * * * *'
+  workflow_dispatch:
+
+# Prevent overlapping invocations — if a tick is still running when the next
+# cron fires, the new one is cancelled. This avoids double-claim attempts on
+# slow-DB days and is safe because the next tick (1 min later) picks up any
+# rows the cancelled run hadn't claimed.
+concurrency:
+  group: cron-fire-due-executors
+  cancel-in-progress: false
+
+jobs:
+  fire:
+    name: curl /api/cron/fire-due-executors
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: curl Vercel handler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::error::CRON_SECRET or VERCEL_DEPLOYMENT_URL not set in repo Secrets"
+            exit 1
+          fi
+          # --max-time 30 matches the route's maxDuration ceiling.
+          curl --fail-with-body -sS --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$DEPLOY_URL/api/cron/fire-due-executors"
