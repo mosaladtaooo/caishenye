@@ -1,4 +1,4 @@
-# Channels session — Windows NSSM service installer.
+# Channels session -- Windows NSSM service installer.
 #
 # Production VPS pivot (2026-05-04): the Channels session runs on a
 # Windows VPS managed by NSSM, not Linux + systemd. This installer
@@ -93,7 +93,7 @@ if ($serviceExists) {
     }
 }
 
-# Application path / args (idempotent — `set` overwrites if service exists).
+# Application path / args (idempotent -- `set` overwrites if service exists).
 & $NssmPath set $ServiceName Application $BunPath
 & $NssmPath set $ServiceName AppParameters "run `"$loopScript`""
 & $NssmPath set $ServiceName AppDirectory $RepoRoot
@@ -108,7 +108,7 @@ if ($envLines.Count -eq 0) {
 $envBlock = ($envLines -join "`r`n")
 & $NssmPath set $ServiceName AppEnvironmentExtra $envBlock
 
-# Logging — stdout + stderr to rotated log files, mirrors systemd's StandardOutput=journal.
+# Logging -- stdout + stderr to rotated log files, mirrors systemd's StandardOutput=journal.
 & $NssmPath set $ServiceName AppStdout (Join-Path $LogDir "$ServiceName.out.log")
 & $NssmPath set $ServiceName AppStderr (Join-Path $LogDir "$ServiceName.err.log")
 & $NssmPath set $ServiceName AppRotateFiles 1
@@ -116,7 +116,7 @@ $envBlock = ($envLines -join "`r`n")
 & $NssmPath set $ServiceName AppRotateSeconds 86400      # daily rotate
 & $NssmPath set $ServiceName AppRotateBytes 10485760     # or 10 MB, whichever first
 
-# Restart policy — match systemd Restart=always RestartSec=5s contract.
+# Restart policy -- match systemd Restart=always RestartSec=5s contract.
 & $NssmPath set $ServiceName AppExit Default Restart
 & $NssmPath set $ServiceName AppRestartDelay 5000        # 5 s, in ms
 & $NssmPath set $ServiceName AppThrottle 10000           # 10 s minimum between restart attempts
@@ -146,5 +146,5 @@ if ($status -notmatch "SERVICE_RUNNING") {
 }
 
 Write-Host ""
-Write-Host "OK — '$ServiceName' is running. Logs: $LogDir\$ServiceName.out.log and $LogDir\$ServiceName.err.log"
+Write-Host "OK -- '$ServiceName' is running. Logs: $LogDir\$ServiceName.out.log and $LogDir\$ServiceName.err.log"
 Write-Host "Next step: install the restart-on-idle scheduled task: .\install-restart-on-idle-task.ps1"
