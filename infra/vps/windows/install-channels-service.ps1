@@ -146,5 +146,5 @@ if ($status -notmatch "SERVICE_RUNNING") {
 }
 
 Write-Host ""
-Write-Host "OK — '$ServiceName' is running. Logs: $LogDir\$ServiceName.{out,err}.log"
+Write-Host "OK — '$ServiceName' is running. Logs: $LogDir\$ServiceName.out.log and $LogDir\$ServiceName.err.log"
 Write-Host "Next step: install the restart-on-idle scheduled task: .\install-restart-on-idle-task.ps1"
