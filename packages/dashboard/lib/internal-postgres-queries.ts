@@ -267,6 +267,32 @@ const handlers: Record<string, (params: Record<string, unknown>) => Promise<Name
     return { rows: claimed, rowsAffected: claimed.length };
   },
 
+  // v1.1.1 cascade-cancel — set status='cancelled' on a single pair_schedules
+  // row. Used by /api/cron/fire-due-executors when multiple planner runs left
+  // scheduled rows for the same (pair, session, date); the cron auto-cancels
+  // the older ones to avoid double-firing the same pair-session.
+  //
+  // Restricted to status='cancelled' for v1.1.1 — the spec's other
+  // proposed value 'skipped_cap_exhausted' (in PRD AC-021-4 post-ADR-013)
+  // requires a schema migration to add the enum value, deferred to v1.2.
+  update_pair_schedule_status: async (params) => {
+    const tenantId = readTenantId(params);
+    const id = readNumber(params, 'id');
+    const status = readString(params, 'status');
+    if (status !== 'cancelled') {
+      throw new Error(
+        `update_pair_schedule_status: status must be 'cancelled' (v1.1.1; v1.2 will add 'skipped_cap_exhausted'), got '${status}'`,
+      );
+    }
+    const db = getTenantDb(tenantId);
+    const updated = await db.drizzle
+      .update(pairSchedules)
+      .set({ status: 'cancelled' })
+      .where(and(eq(pairSchedules.tenantId, tenantId), eq(pairSchedules.id, id)))
+      .returning({ id: pairSchedules.id });
+    return { rows: updated, rowsAffected: updated.length };
+  },
+
   // v1.1 cron-pivot — settle a successfully-fired schedule. Sets
   // scheduled_one_off_id to the real session_id from /fire's response and
   // status='fired'. Idempotent against re-calls (the WHERE clause matches

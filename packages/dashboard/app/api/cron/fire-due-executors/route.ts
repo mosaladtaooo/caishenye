@@ -54,6 +54,9 @@ interface DueRow {
   sessionName: string;
   startTimeGmt: string | Date | null;
   endTimeGmt: string | Date | null;
+  /** v1.1.1 — used by the cascade-cancel dedupe (KI-006). */
+  plannerRunId: number | null;
+  date: string;
 }
 
 interface FireResult {
@@ -183,9 +186,60 @@ export async function GET(req: Request): Promise<Response> {
     return jsonRes(200, { ok: true, tick: nowIso, dueCount: 0, results: [] });
   }
 
-  // 2. For each row: claim → fire → settle.
-  const results: FireResult[] = [];
+  // 1b. EC-002-3 cascade-cancel: when multiple planner runs left scheduled
+  // rows for the same (pair, session, date), the cron MUST only fire the
+  // latest run's row and cancel the older ones. Otherwise N planner runs ×
+  // M pair-sessions = N×M executor fires, exhausting the daily cap and
+  // firing conflicting executors. The planner doesn't do this cancel
+  // itself (KI-006); we defend at the firing layer.
+  const dedupedRows: DueRow[] = [];
+  const cancelledIds: number[] = [];
+  const groupKey = (r: DueRow): string => `${r.pairCode}|${r.sessionName}|${r.date}`;
+  const groups = new Map<string, DueRow[]>();
   for (const row of dueRows) {
+    const k = groupKey(row);
+    const arr = groups.get(k);
+    if (arr) arr.push(row);
+    else groups.set(k, [row]);
+  }
+  for (const arr of groups.values()) {
+    if (arr.length === 1) {
+      dedupedRows.push(arr[0] as DueRow);
+      continue;
+    }
+    // Multiple rows for same (pair, session, date) — pick highest planner_run_id;
+    // ties broken by highest schedule id.
+    const sorted = [...arr].sort((a, b) => {
+      const ar = a.plannerRunId ?? -1;
+      const br = b.plannerRunId ?? -1;
+      if (ar !== br) return br - ar;
+      return b.id - a.id;
+    });
+    const winner = sorted[0] as DueRow;
+    dedupedRows.push(winner);
+    for (const loser of sorted.slice(1)) cancelledIds.push(loser.id);
+  }
+
+  // Auto-cancel the loser rows (best-effort; if this fails the claim race
+  // would still have the cron processing each independently — same as v1.1
+  // behaviour, so failing here is graceful-degraded not catastrophic).
+  for (const id of cancelledIds) {
+    try {
+      await runNamedQuery({
+        name: 'update_pair_schedule_status',
+        params: { tenantId, id, status: 'cancelled' },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      process.stderr.write(
+        `[fire-due-executors] cascade-cancel id=${id} failed (continuing): ${msg}\n`,
+      );
+    }
+  }
+
+  // 2. For each (deduped) row: claim → fire → settle.
+  const results: FireResult[] = [];
+  for (const row of dedupedRows) {
     const claimToken = `claiming-${Date.now()}-${row.id}`;
 
     // 2a. Atomic claim.
@@ -284,7 +338,9 @@ export async function GET(req: Request): Promise<Response> {
   return jsonRes(200, {
     ok: true,
     tick: nowIso,
+    cascadeCancelledCount: cancelledIds.length,
     dueCount: dueRows.length,
+    dedupedCount: dedupedRows.length,
     firedCount: results.filter((r) => r.outcome === 'fired').length,
     results,
   });

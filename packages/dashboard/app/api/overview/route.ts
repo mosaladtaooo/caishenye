@@ -13,6 +13,7 @@
  */
 
 import { mt5Get } from '@/lib/mt5-server';
+import { OPERATOR_COOKIE_NAME, verifyOperatorCookie } from '@/lib/operator-session';
 import { resolveOperatorFromSession } from '@/lib/override-bind';
 
 const SESSION_COOKIE_NAMES = ['__Secure-authjs.session-token', 'authjs.session-token'];
@@ -28,13 +29,25 @@ interface PositionData {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  let resolved: { tenantId: number } | null;
-  try {
-    resolved = await resolveOperatorFromSession(readSessionCookie(req));
-  } catch {
-    resolved = null;
+  // v1.1.1 KI-005 workaround: accept the operator-session cookie (token-based
+  // login) in addition to the Auth.js cookie. v1.2 will replace both with a
+  // proper SimpleWebAuthn flow.
+  const operatorCookieValue = readCookieByName(req, OPERATOR_COOKIE_NAME);
+  let authed = false;
+  if (
+    typeof operatorCookieValue === 'string' &&
+    (await verifyOperatorCookie(operatorCookieValue))
+  ) {
+    authed = true;
+  } else {
+    try {
+      const resolved = await resolveOperatorFromSession(readSessionCookie(req));
+      if (resolved !== null) authed = true;
+    } catch {
+      // fall through to 401
+    }
   }
-  if (resolved === null) {
+  if (!authed) {
     return jsonRes(401, { ok: false, error: 'unauthorized' });
   }
 
@@ -84,4 +97,12 @@ function readSessionCookie(req: Request): string | undefined {
     if (match !== undefined) return match.slice(name.length + 1);
   }
   return undefined;
+}
+
+function readCookieByName(req: Request, name: string): string | undefined {
+  const raw = req.headers.get('cookie');
+  if (raw === null) return undefined;
+  const parts = raw.split(';').map((p) => p.trim());
+  const match = parts.find((p) => p.startsWith(`${name}=`));
+  return match === undefined ? undefined : match.slice(name.length + 1);
 }
