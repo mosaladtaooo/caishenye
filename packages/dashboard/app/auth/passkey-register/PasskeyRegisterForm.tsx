@@ -21,9 +21,15 @@
  */
 
 import { signIn } from 'next-auth/webauthn';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 export function PasskeyRegisterForm(): React.ReactElement {
+  const emailInputId = useId();
+  // Auth.js v5 Passkey provider requires a user identifier (email) at
+  // registration time so the DrizzleAdapter can create the User row that
+  // owns the new authenticator. v1 is single-user; default to a stable
+  // local-realm email but let the operator type a real one if they prefer.
+  const [email, setEmail] = useState('operator@caishen.v1');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debug, setDebug] = useState<string | null>(null);
@@ -31,14 +37,14 @@ export function PasskeyRegisterForm(): React.ReactElement {
   const handleRegister = async (): Promise<void> => {
     setBusy(true);
     setError(null);
-    setDebug('1/4 calling signIn(passkey, action=register)...');
+    setDebug(`1/4 calling signIn(passkey, action=register, email=${email})...`);
     try {
-      // Auth.js v5 Passkey provider: action='register' creates a new
-      // credential. Without this flag, the default action is 'authenticate'
-      // (which would fail since no passkey exists yet).
-      const result = await signIn('passkey', { action: 'register', redirectTo: '/' });
+      const result = await signIn('passkey', {
+        action: 'register',
+        email,
+        redirectTo: '/',
+      });
       setDebug(`done. result=${JSON.stringify(result).slice(0, 200)}`);
-      // If signIn doesn't redirect (e.g., on error), we land here.
       setBusy(false);
     } catch (e) {
       setError(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
@@ -48,10 +54,36 @@ export function PasskeyRegisterForm(): React.ReactElement {
 
   return (
     <div style={{ marginTop: '1.5rem' }}>
+      <label
+        htmlFor={emailInputId}
+        style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.875rem', color: '#aaa' }}
+      >
+        Email (operator identity)
+      </label>
+      <input
+        id={emailInputId}
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        disabled={busy}
+        style={{
+          padding: '0.5rem 0.75rem',
+          width: '100%',
+          maxWidth: '24rem',
+          background: '#0f1419',
+          color: '#fff',
+          border: '1px solid #2a5168',
+          borderRadius: '4px',
+          fontSize: '0.9rem',
+          marginBottom: '1rem',
+          fontFamily: 'monospace',
+        }}
+      />
+      <br />
       <button
         type="button"
         onClick={handleRegister}
-        disabled={busy}
+        disabled={busy || email.length === 0}
         style={{
           padding: '0.6rem 1.4rem',
           background: busy ? '#444' : '#1d3a4a',
