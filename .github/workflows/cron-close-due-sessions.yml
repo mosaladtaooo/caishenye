@@ -1,0 +1,48 @@
+# cron-close-due-sessions -- every-minute session-end close tick.
+#
+# Curls the Vercel-deployed /api/cron/close-due-sessions handler. The handler
+# polls pair_schedules for rows where status='fired' AND end_time_gmt has
+# passed (within 5-min lookback), then calls DELETE
+# /api/internal/mt5/positions/by-symbol/{symbol} to flatten any still-open
+# positions for the pair.
+#
+# Why this exists: v1.1 fired executors at start_time_gmt but had no
+# scheduler enforcing end_time_gmt. The verbatim SPARTAN prompt mandates
+# "ALL EURO/London Session's trades will be cleared before US Session Start"
+# -- v1.1.1 ships this cron to do that.
+#
+# Required GitHub repo Secrets (already set, shared with cron-fire-due-executors):
+#   - CRON_SECRET
+#   - VERCEL_DEPLOYMENT_URL
+#
+# No-op behavior: when no rows are due, handler returns 200 dueCount=0.
+
+name: cron-close-due-sessions
+
+on:
+  schedule:
+    - cron: '* * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: cron-close-due-sessions
+  cancel-in-progress: false
+
+jobs:
+  close:
+    name: curl /api/cron/close-due-sessions
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: curl Vercel handler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::error::CRON_SECRET or VERCEL_DEPLOYMENT_URL not set in repo Secrets"
+            exit 1
+          fi
+          curl --fail-with-body -sS --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$DEPLOY_URL/api/cron/close-due-sessions"
