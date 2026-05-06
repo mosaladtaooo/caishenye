@@ -267,6 +267,38 @@ const handlers: Record<string, (params: Record<string, unknown>) => Promise<Name
     return { rows: claimed, rowsAffected: claimed.length };
   },
 
+  // v1.1.1 session-end close — find rows where status='fired' AND end_time_gmt
+  // is in [now - lookbackMinutes, now]. Used by /api/cron/close-due-sessions
+  // to auto-close MT5 positions when a planner-defined trade window ends.
+  // Bounded lookback (default 5 min) so missed-window closes don't keep
+  // attempting hours later — those become operator-investigation items.
+  select_pair_schedules_due_for_close: async (params) => {
+    const tenantId = readTenantId(params);
+    const nowIso = readString(params, 'nowIso');
+    const lookbackMinutes = typeof params.lookbackMinutes === 'number' ? params.lookbackMinutes : 5;
+    const now = new Date(nowIso);
+    if (Number.isNaN(now.getTime())) throw new Error('nowIso must be a valid ISO timestamp');
+    const lookbackCutoff = new Date(now.getTime() - lookbackMinutes * 60_000);
+    const db = getTenantDb(tenantId);
+    const rows = await db.drizzle
+      .select()
+      .from(pairSchedules)
+      .where(
+        and(
+          eq(pairSchedules.tenantId, tenantId),
+          eq(pairSchedules.status, 'fired'),
+          lte(pairSchedules.endTimeGmt, now),
+        ),
+      )
+      .orderBy(asc(pairSchedules.endTimeGmt));
+    // Filter to within lookback window (drop ancient rows).
+    const fresh = rows.filter((r) => {
+      if (r.endTimeGmt === null) return false;
+      return new Date(r.endTimeGmt as unknown as string) >= lookbackCutoff;
+    });
+    return { rows: fresh };
+  },
+
   // v1.1.1 cascade-cancel — set status='cancelled' on a single pair_schedules
   // row. Used by /api/cron/fire-due-executors when multiple planner runs left
   // scheduled rows for the same (pair, session, date); the cron auto-cancels
