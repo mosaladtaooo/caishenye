@@ -114,6 +114,41 @@ v1.2 sweep: extract a shared `resolveOperatorAuth(req)` helper that tries operat
 
 ---
 
+## KI-009 — close-due-sessions cron only closes positions, not pending orders
+**Added**: 2026-05-06
+**Feature**: 001-foundation-routines-channels-dashboard
+**Severity**: Major (pending orders survive session end → may fill in wrong session window)
+**Category**: Code Quality (cron scope)
+
+### Description
+v1.1.1 `cron-close-due-sessions` calls `DELETE /api/internal/mt5/positions/by-symbol/{symbol}` to close MARKET positions at end_time_gmt. It does NOT call `DELETE /api/internal/mt5/orders/pending/by-symbol/{symbol}` to cancel PENDING orders. Result: a BUY/SELL LIMIT/STOP order placed during London session (08:00-12:00 GMT) survives past 12:00 GMT and can fill anytime during the NY session — when the technical analysis is stale and the SPARTAN reasoning no longer applies.
+
+Surfaced 2026-05-06 09:42 GMT: EUR/USD position #277132850 + GBP/USD pending #277134012 both attached to London session (end 12:00 GMT). Position will auto-close at 12:00; pending will sit until manually cancelled or filled (GTC = good-till-cancelled by default).
+
+### Where
+- `packages/dashboard/app/api/cron/close-due-sessions/route.ts` `closePositionsBySymbol` — only DELETEs the positions endpoint
+- The pending-cancel endpoint at `packages/dashboard/app/api/internal/mt5/orders/pending/by-symbol/[symbol]/route.ts` exists (Phase C) but is never called by any cron
+
+### Resolution plan
+v1.2 — extend `cron-close-due-sessions` to call both endpoints per pair:
+1. `DELETE /api/internal/mt5/orders/pending/by-symbol/{symbol}` first (cancel pending so they don't fill mid-close)
+2. `DELETE /api/internal/mt5/positions/by-symbol/{symbol}` second (close any open positions)
+
+~10 LOC change + extend the response shape to report `cancelled_pending_count` alongside `closed_count`.
+
+### Operator workaround until v1.2
+At each session end, manually cancel pending orders via curl:
+```bash
+bun --env-file=".env.local" -e "
+fetch('https://caishenv2.vercel.app/api/internal/mt5/orders/pending/by-symbol/<SYMBOL>', {
+  method: 'DELETE',
+  headers: { Authorization: 'Bearer ' + process.env.INTERNAL_API_TOKEN }
+}).then(r => r.text()).then(console.log)
+"
+```
+
+---
+
 ## KI-008 — Vercel Blob upload returns 502 (private store)
 **Added**: 2026-05-06
 **Feature**: 001-foundation-routines-channels-dashboard
