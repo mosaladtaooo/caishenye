@@ -84,14 +84,37 @@ export async function POST(req: Request): Promise<Response> {
         error: `anthropic/fire: upstream ${res.status}: ${text.slice(0, 256)}`,
       });
     }
-    const json = (await res.json()) as { one_off_id?: unknown; session_id?: unknown };
-    if (typeof json.one_off_id !== 'string' || json.one_off_id.length === 0) {
-      return jsonRes(502, { error: 'anthropic/fire: upstream response missing one_off_id' });
+    const json = (await res.json()) as {
+      one_off_id?: unknown;
+      session_id?: unknown;
+      claude_code_session_id?: unknown;
+      claude_code_session_url?: unknown;
+      type?: unknown;
+    };
+    // Canonical /v1/claude_code/routines/{id}/fire response shape:
+    //   { type: "routine_fire", claude_code_session_id, claude_code_session_url }
+    // Legacy /v1/routines/{id}/fire (no longer used) returned:
+    //   { one_off_id, session_id }
+    // Accept either; the Routines API has been in flux, so prefer canonical
+    // but fall back to legacy fields for forward-compat resilience.
+    const sessionId =
+      typeof json.claude_code_session_id === 'string' && json.claude_code_session_id.length > 0
+        ? json.claude_code_session_id
+        : typeof json.one_off_id === 'string' && json.one_off_id.length > 0
+          ? json.one_off_id
+          : '';
+    if (sessionId.length === 0) {
+      return jsonRes(502, {
+        error:
+          'anthropic/fire: upstream response missing both claude_code_session_id and one_off_id',
+      });
     }
     return jsonRes(200, {
       ok: true,
-      anthropicOneOffId: json.one_off_id,
-      claudeCodeSessionId: typeof json.session_id === 'string' ? json.session_id : null,
+      anthropicOneOffId: sessionId,
+      claudeCodeSessionId: sessionId,
+      claudeCodeSessionUrl:
+        typeof json.claude_code_session_url === 'string' ? json.claude_code_session_url : null,
     });
   } catch (e) {
     clearTimeout(timer);
