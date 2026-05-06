@@ -6,7 +6,7 @@
  * Looks up routine_id + bearer from env (PLANNER_ROUTINE_ID/_BEARER for
  * "planner", EXECUTOR_ROUTINE_IDS/_BEARERS JSON keyed by routine name for
  * "executor"+, SPIKE_NOOP_ROUTINE_ID/_BEARER for "spike-noop"). Calls
- * /v1/routines/${id}/fire with the experimental beta header.
+ * /v1/claude_code/routines/${id}/fire with the experimental beta header.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -118,7 +118,7 @@ describe('POST /api/internal/anthropic/fire — env-routing per routine name', (
     const res = await route.POST(buildReq({ routine: 'planner' }, `Bearer ${fixtureBearer}`));
     expect(res.status).toBe(200);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.anthropic.test/v1/routines/trig_planner_001/fire');
+    expect(url).toBe('https://api.anthropic.test/v1/claude_code/routines/trig_planner_001/fire');
     const auth = (init.headers as Record<string, string>).authorization;
     expect(auth).toBe(`Bearer ${plannerBearer}`);
     const beta = (init.headers as Record<string, string>)['anthropic-beta'];
@@ -133,7 +133,7 @@ describe('POST /api/internal/anthropic/fire — env-routing per routine name', (
     const res = await route.POST(buildReq({ routine: 'executor' }, `Bearer ${fixtureBearer}`));
     expect(res.status).toBe(200);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.anthropic.test/v1/routines/trig_executor_001/fire');
+    expect(url).toBe('https://api.anthropic.test/v1/claude_code/routines/trig_executor_001/fire');
     const auth = (init.headers as Record<string, string>).authorization;
     expect(auth).toBe(`Bearer ${executorBearer}`);
   });

@@ -55,7 +55,12 @@ export async function POST(req: Request): Promise<Response> {
 
   const baseUrl = process.env.ANTHROPIC_ROUTINES_BASE_URL ?? 'https://api.anthropic.com';
   const beta = process.env.ROUTINE_BETA_HEADER ?? 'experimental-cc-routine-2026-04-01';
-  const url = `${baseUrl.replace(/\/$/, '')}/v1/routines/${resolved.id}/fire`;
+  // Per docs.code.claude.com/routines (verified 2026-05-05), canonical fire
+  // path is /v1/claude_code/routines/{id}/fire. The legacy /v1/routines/{id}/fire
+  // path returned 200 in earlier sessions but now returns 404 — either deprecated
+  // or never officially supported. The cron route at /api/cron/fire-due-executors
+  // already uses the canonical path.
+  const url = `${baseUrl.replace(/\/$/, '')}/v1/claude_code/routines/${resolved.id}/fire`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FIRE_TIMEOUT_MS);
