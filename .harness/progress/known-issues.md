@@ -75,6 +75,49 @@ Operator-paced. If/when rotation is desired:
 
 ---
 
+## KI-006 — GitHub Actions cron throttles `* * * * *` to multi-hour gaps under load
+**Added**: 2026-05-06
+**Feature**: 001-foundation-routines-channels-dashboard
+**Severity**: Major (causes missed executor fires; 5-min lookback misses windows)
+**Category**: Infra (third-party constraint)
+
+### Description
+The v1.1 cron design assumed GH Actions `* * * * *` schedules fire reliably every minute. Live observation 2026-05-06: the `cron-fire-due-executors` workflow ran 5 times in 23 hours (23:11, 00:05, 04:00, 06:39, 09:08 UTC) — gaps of 30 min to 4+ hours. Free-tier GH Actions cron is documented as best-effort with significant throttling under platform load.
+
+Real-world impact: London 08:00 GMT executor fires were MISSED entirely because no cron tick happened between 06:39 and 09:08 UTC, and the (then-)5-minute lookback window in `select_pair_schedules_due_for_fire` rejected the 1+ hour-old rows.
+
+### Where
+- `.github/workflows/cron-fire-due-executors.yml` schedule `* * * * *`
+- `.github/workflows/cron-close-due-sessions.yml` schedule `* * * * *`
+- `packages/dashboard/lib/internal-postgres-queries.ts` `select_pair_schedules_due_for_fire` lookbackMinutes default (was 5; bumped to 60 in commit `8d257ee`)
+- `packages/dashboard/app/api/cron/fire-due-executors/route.ts` lookbackMinutes default (60 + query-param override)
+
+### v1.1.1 partial mitigation (commit `8d257ee`)
+- Default lookback bumped 5 → 60 min — recovers from typical GH Actions throttling
+- New `?lookbackMinutes=N` query param (max 1440) — operator can manually trigger recovery curl with extended lookback when a >60-min gap occurs
+
+### v1.2 resolution paths (operator's choice)
+1. **Multi-schedule belt-and-suspenders** — add `*/5 * * * *` and `*/15 * * * *` schedules alongside `* * * * *` so even under heavy throttling, every 15-min ticks still fire. cron-synthetic-ping pattern.
+2. **Vercel cron paid tier** — Vercel Pro plan supports sub-daily cron with much tighter SLA (~30s jitter). ~$20/mo. Move all 3 caishen crons to Vercel.
+3. **External scheduler** — cron-job.org (free, reliable) or AWS EventBridge or Cloudflare Workers cron-trigger. ~5 min setup, free tier sufficient.
+4. **Self-hosted cron on the operator's VPS** — already running NSSM services; add a windows scheduled task that curls the Vercel handler every minute. Same reliability as Channels session.
+
+Recommended: option 4 (operator-VPS cron). Same trust boundary as the existing NSSM services; no new infra; deterministic per-minute.
+
+### Operator workaround until v1.2
+If executor fires are missed, run this from your laptop:
+```bash
+bun --env-file=".env.local" -e "
+const r = await fetch('https://caishenv2.vercel.app/api/cron/fire-due-executors?lookbackMinutes=240', {
+  headers: { Authorization: 'Bearer ' + process.env.CRON_SECRET }
+});
+console.log(await r.text());
+"
+```
+Same pattern works for `/api/cron/close-due-sessions` (session-end recovery).
+
+---
+
 ## KI-005 — Auth.js v5 WebAuthn passkey registration not working
 **Added**: 2026-05-06
 **Feature**: 001-foundation-routines-channels-dashboard
