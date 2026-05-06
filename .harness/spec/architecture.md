@@ -1,0 +1,140 @@
+# 财神爷 v2 — High-Level Technical Direction
+
+> **Read first**: this document is HIGH-LEVEL DIRECTION, not implementation. Component boundaries, data-model field-level shapes, API endpoint URLs, and FR-to-file mappings are negotiated between Generator and Evaluator in the negotiation phase BEFORE any code is written. The job here is to constrain WHAT gets built, not HOW.
+
+## Stack
+
+| Layer | Choice | Version | Serves (NFR ref) | Rationale |
+|-------|--------|---------|------------------|-----------|
+| Trading-core LLM (Planner) | Claude Sonnet 4.6 | latest available in Anthropic Routines console | NFR-001, NFR-006 | Cheap, fast enough for news-synthesis + schedule decision; preserves token budget for the Executor (which needs Opus). User decided in brainstorm. |
+| Trading-core LLM (Executor) | Claude Opus 4.7 (1M context) | `[1m]` variant | NFR-001, NFR-006 | 1M context fits 250+180+240+288 = 958 candle bars across timeframes without truncation; Opus quality for senior-trader-level reasoning. User decided in brainstorm. |
+| Channels-session LLM | Claude Sonnet 4.6 (default) | latest | NFR-002, NFR-006 | Cheap subscription tokens for chat; can be elevated per-turn to Opus 4.7 for complex multi-turn debugging. User decided in brainstorm. |
+| Trading-agent runtime | Claude Code Routines | as of `experimental-cc-routine-2026-04-01` | NFR-001 | Subscription-billed (§1). The cron tick at `/api/cron/fire-due-executors` fires per-pair Executors via the `/fire` API when due `pair_schedules` rows are reached (every-minute Postgres SELECT). Every fire is cap-counted (the cap-exempt `/schedule` path was discovered to not exist; no programmatic `/schedule` API is documented). |
+| Telegram surface | Claude Code Channels (Telegram plugin) | `claude-plugins-official` marketplace, `telegram` plugin | NFR-002, NFR-006 | Bidirectional chat with sub-second latency; subscription-billed; same session handles slash commands AND free-text. User chose this over Vercel-Functions+SDK split for simplicity. |
+| Web framework (dashboard) | Next.js | 16.1+ (App Router) | NFR-003 | Vercel-native; Server Components for SSR + SWR for client polling; mature route handlers for the override APIs. Context7 confirmed App-Router + SWR pattern. |
+| UI components | shadcn/ui | latest | NFR-003, criteria Product Depth | Pairs with `frontend-design` and `impeccable` skills (the dashboard's design pipeline). Tailwind primitives, no design-system lock-in. |
+| Charts (P&L curves) | Recharts | latest | NFR-003 | Tremor was the alternative. Recharts is the underlying library Tremor wraps; choosing it directly avoids the wrapper. |
+| Auth (dashboard) | Auth.js (NextAuth.js) v5 + WebAuthn provider | v5+ for Next.js 16 | NFR-009 | Vercel-native; passkey-only in v1 (no SMTP infra, no shared-secret in inbox); multi-device via separate passkey registrations on phone + laptop; fallback to magic-link is a one-line provider swap. Resolved per clarify Q3 (2026-05-01). |
+| Database | Vercel Postgres (Neon) | latest serverless driver | NFR-001, NFR-004 | Vercel-native; serverless-friendly; branching for staging; multi-tenant `tenant_id` schema (§4) trivially supported. |
+| ORM/migrations | Drizzle ORM + Drizzle Kit | latest | §4, §12 | Type-safe queries with `WHERE tenant_id = $1` enforceable at the type level (more obvious in code review than Prisma's middleware row-level filter); smaller runtime + edge-friendly pattern fits Vercel Functions; Drizzle Kit migrations simple to author by hand for v1's small schema. **Locked per clarify Q9 (2026-05-01)** — Generator does not negotiate ORM choice. |
+| Blob storage (reports) | Vercel Blob | latest SDK | FR-015 | Vercel-native; signed URLs out of the box. |
+| Tunnel (VPS → cloud) | Tailscale Funnel + app-layer bearer | `tailscale` latest | FR-009 | Verified via Context7 (2026-05-01): `tailscale funnel` exposes a local HTTP service publicly via auto-assigned `*.ts.net` hostname with TLS, accessible to non-Tailscale callers (Anthropic Routines + Vercel Functions both call OK). Funnel surface is intentionally public — auth lives in app layer (gateway enforces `Authorization: Bearer ${MT5_BEARER_TOKEN}`). Operator does not own a Cloudflare-managed domain at v1 launch, so this is the no-domain path. **Resolved per clarify Q2 (2026-05-01)**; see ADR-005 (revised). When operator acquires a domain, `/harness:edit` re-introduces the Cloudflare Tunnel + Access Service Token pattern. |
+| Code interpreter (Executor side) | Vercel Sandbox-backed `compute_python` MCP | latest | FR-013 | Lightweight; runs in Firecracker microVM; the Executor calls it as an MCP tool when math is heavy. Operator may detach if Opus's native math suffices. |
+| Technical indicators (Executor side) | TwelveData REST via Vercel proxy `/api/internal/indicators` | latest | FR-022 | Verbatim SPARTAN prompt mandates ATR (mandatory for SL+ATR-buffer rule), Stoch %K/%D, RSI in 4H/1H sections. n8n executor used `https://api.twelvedata.com/{indicator}` directly; v1.1 wraps via Vercel proxy so `TWELVEDATA_API_KEY` never leaves server-side env. 8-indicator allowlist (ema, rsi, macd, adx, bbands, stoch, atr, vwap). Graceful degradation on upstream unreachable. **Added in v1.1 retrospective (ADR-014)** — initial v1 shipped without indicators; the verbatim SPARTAN prompt's mandate surfaced the gap. |
+| VPS process supervisor | systemd | OS-default | FR-004, FR-005, §15 | Universal; `Restart=always`; `EnvironmentFile=` for non-git secrets. |
+| Pre-commit hooks | husky + lint-staged | latest | §1, §10 | Run `make audit-no-api-key` + gitleaks + tsc + eslint per commit. |
+| Secret scanning | gitleaks | latest | §10 | Industry-standard, well-tuned for false-positive avoidance. |
+| Unit testing | vitest | latest | §9 | Fast; Next.js 16 + ESM-friendly. |
+| E2E testing | Playwright (via `@playwright/test`) | latest | §9, NFR-009 | Already used by the harness pipeline; covers the dashboard's auth + override flows. |
+| MCP — ForexFactory | existing operator-deployed MCP server | unchanged | FR-002, FR-003 | Already on VPS, exposes `ffcal_get_calendar_events` (per brainstorm). Routines attach as connector via tunnel; Channels session reaches locally. |
+| MCP — MT5 REST | existing operator MetaTrader REST gateway | unchanged | FR-003, FR-006, FR-016 | All 27 endpoints unchanged (operator's hard rule). Routines + dashboard reach via Tailscale Funnel + app-layer bearer (per ADR-005 revised); Channels session reaches locally. |
+
+## Architectural Style
+
+A three-surface system: (1) **Trading core** is a set of subscription-billed Routines on Anthropic's cloud, fired via the `/fire` API by the dashboard's every-minute cron tick at `/api/cron/fire-due-executors` (which reads due `pair_schedules` rows). (2) **Telegram** is an always-on Claude Code Channels session running as a systemd service on the operator's VPS. (3) **Dashboard** is a Next.js 16 App Router project on Vercel free tier. All three surfaces share state through a single Vercel Postgres (Neon) database and a Vercel Blob bucket. The MT5 REST API and ForexFactory MCP live on the operator's VPS and are reached by (1) and (3) through a Tailscale Funnel (auto-assigned `*.ts.net` hostname, no domain required at v1 launch) with app-layer bearer-token auth at the gateway; (2) reaches them locally. No Anthropic API SDK is ever loaded; LLM calls only originate from (1) and (2). All time is GMT/UTC; localization happens in the dashboard view layer only.
+
+## NFR Feasibility Check
+
+- **NFR-001 (≥99.5% scheduled fires execute)**: Routines + Postgres + audit-or-abort design (§3) gives observable failure attribution. Tailscale Funnel + app-layer bearer (per ADR-005 revised) gives a stable, free transport with no domain prerequisite — Funnel hostnames are stable per-tailnet-node. Cap accounting is unconditional and tracked under NFR-006 (every fire `/fire`-API-driven and cap-counted). Risk concentrated in the long-running Executor; FR-001 AC-001-2 measures and informs split/fallback. Funnel-hostname-drift on VPS re-auth is caught by init.sh smoke (FR-009 AC-009-4) per RISK-005 v1 subnote.
+- **NFR-002 (Telegram p95 ≤ 3s)**: Always-on Channels session avoids cold-start; Sonnet 4.6 default keeps latency low; messages under 280 chars rarely need multi-step tool use. Verified achievable per Anthropic's Channels docs ("sub-second response latency").
+- **NFR-003 (dashboard live ≤ 6s p95)**: SWR polling at 5s + Vercel edge caching = comfortably within budget. Stale-state UI (yellow/red banners) fails-loud when polling itself stalls.
+- **NFR-004 (audit completeness)**: Audit-or-abort (§3) + start-row-before-tool-call (FR-007 AC-007-1) + daily orphan-detection cron (NFR-004) give us closure proof.
+- **NFR-005 (no `ANTHROPIC_API_KEY`)**: Pre-commit + CI lint + `make audit-no-api-key` + gitleaks + the constitution's hard ban (§1, §13) give layered enforcement.
+- **NFR-006 (token budget ≤ 80% Max 20x weekly)**: FR-001 AC-001-4 establishes baseline; ongoing weekly cron monitors via `cap_usage_local` (per ADR-008 revised — local-counter source-of-truth, scrape path dropped). If exceeded, Channels free-text capability is the first lever (cap output tokens, route slash commands to Vercel Functions). If FR-001 spike reveals `/v1/usage` API exposure, daily reconciliation cron (per ADR-008 option iv) provides cross-check on the local count; drift > 1 slot triggers Telegram alert.
+- **NFR-007 (override atomicity)**: Single transaction for audit row + MT5 call + Telegram broadcast queued (use the queue or rely on the structured rollback).
+- **NFR-008 (TZ correctness)**: Constitution §5 + DST-day test in CI.
+- **NFR-009 (auth on every dashboard route)**: Auth.js middleware at root layout + per-route re-verify in override handlers + Playwright route-enumeration test.
+
+## Key Stack Decisions (ADRs)
+
+### ADR-001: Path C Hybrid (Routines + Channels session) chosen over Path B (single 24/7 session) and Path 1 (Vercel Workflow + Anthropic API)
+- **Context**: User's brainstorm explicitly chose Path C for fault isolation across pairs and subscription-only billing.
+- **Options considered**: Path 1 (Vercel Workflow DevKit + Anthropic API + Sonnet 4.6, ~$120-150/mo, predictable cost, durable scheduler first-class — REJECTED for API billing); Path B (single 24/7 session, no cap pressure, all 8 pairs possible — REJECTED for single-point-of-failure across the trading core); Path C Hybrid (Routines for trading + Channels session for Telegram, ~$200/mo subscription only, per-pair fault isolation — CHOSEN).
+- **Chosen**: Path C Hybrid.
+- **Rationale**: Per-pair Executor isolation is worth the cap pressure; subscription-only billing is non-negotiable.
+- **Affects**: NFR-001, NFR-006, FR-001 through FR-005, the entire system shape.
+
+### ADR-002: Cap-handling strategy = every Executor fire is `/fire`-API-driven and cap-counted (revised 2026-05-04 — the cap-exempt `/schedule` path never existed)
+- **Context**: The original ADR-002 hinged on the assumption that programmatic `/schedule`-from-inside-a-routine produced cap-exempt one-offs (load-bearing for FR-001 AC-001-1). v1 build discovery: Anthropic exposes no programmatic `/schedule` API at all. The conditional collapses.
+- **Options considered (revised)**: (a) keep-the-conditional, blocked by reality (no `/schedule` API exists); (b) **CHOSEN — every Executor fire is `/fire`-API-driven and cap-counted; daily cap budget = 1 Planner + N Executors per pair-session approved by Planner; cap-exhaustion fallback is to skip lowest-priority pair-sessions per Planner output**.
+- **Chosen**: (b) unconditional `/fire`-API-driven cap-counted model.
+- **Rationale**: There is no architectural-conditional left because there is no `/schedule` API to verify. A 1 + N cap budget where N ≤ 13 on a fully-approved day leaves ≥1 slot for operator-driven re-plans on most days; on heavy-news days where N approaches 14, the cron tick's skip-lowest-priority fallback ensures the system gracefully degrades rather than hard-stopping.
+- **Affects**: NFR-001, NFR-006, FR-001 (AC-001-1 + EC-001-1 dropped, FR-001 retitled to "three" assumptions), FR-002 (AC-002-2 substep h rewritten), FR-003 (AC-003-1, AC-003-2 rewritten), FR-018, FR-021 (AC-021-4 rewritten).
+
+### ADR-003: Executor LLM = Opus 4.7 1M, but allow downgrade to Sonnet 4.6 if duration limit binds
+- **Context**: User chose Opus 4.7 1M for fidelity to multi-timeframe candle context; routine duration limit is undocumented.
+- **Options considered**: Opus 4.7 1M (1M context, slower, more expensive token-wise); Opus 4.7 (default 200K, may need timeframe truncation); Sonnet 4.6 (faster, less context, may match GPT-5.4 baseline).
+- **Chosen**: Opus 4.7 1M default. Fallback to Sonnet 4.6 if FR-001 AC-001-2 fails.
+- **Rationale**: Quality-first if budget allows; FR-001 measures.
+- **Affects**: NFR-001, NFR-006, FR-003.
+
+### ADR-004: `/fire` API beta-header pinning (revised 2026-05-04 — drop `claude /run` fallback)
+- **Context**: `experimental-cc-routine-2026-04-01` may be bumped with breaking changes per Anthropic's own warning. v1.1 cascade: under the post-pivot architecture (every Executor fire is `/fire`-API-driven via the cron tick), there is no `/run` Bash path that could meaningfully serve as a `/fire` outage fallback — both paths terminate at the `/fire` API.
+- **Options considered (revised)**: Pin to current header in env var, fail loudly on bump (CHOSEN); auto-upgrade on each bump (risky); abandon `/fire` for `claude /run` Bash — REJECTED at v1.1 because `/run` would still need to drive the same `/fire` to schedule the Executor and adds no rollback value.
+- **Chosen**: Pin the header in a `ROUTINE_BETA_HEADER` env var; CI smoke-test runs every commit; manual-controlled upgrade. The dashboard's `/api/internal/anthropic/fire` route is the operator-driven retry path during a beta-header outage (after rolling the env value).
+- **Rationale**: Stability with documented upgrade path; no false-fallback comfort from `/run`.
+- **Affects**: NFR-001, FR-018, RISK-003.
+
+### ADR-005: Tailscale Funnel + app-layer bearer token (resolved per clarify Q2, 2026-05-01)
+- **Context**: Need to expose VPS-resident MT5 REST + ForexFactory MCP to Routines (Anthropic cloud) and Vercel Functions (dashboard reads). Original silent default (Cloudflare Tunnel + Access Service Token) was rejected at clarify time because the operator does not own a Cloudflare-managed domain at v1 launch, and registering / migrating DNS to Cloudflare is a launch-blocker the operator wants to defer.
+- **Options considered (revised)**:
+  - (a) Cloudflare Tunnel + Access Service Token — original silent default. **Rejected** — requires Cloudflare-managed domain the operator does not own at v1 launch.
+  - (b) Cloudflare Tunnel + bearer-in-URL — same domain prerequisite, plus bearer-in-URL is a leakier auth model.
+  - (c) **Tailscale Funnel + app-layer bearer token (CHOSEN)** — `tailscale funnel <port>` exposes a local HTTP service to the public internet via auto-assigned `*.ts.net` hostname with automatic TLS. No domain prerequisite. Funnel surface is intentionally public — Tailscale Funnel does NOT include built-in auth for callers, so auth moves into the app layer (gateway enforces `Authorization: Bearer ${MT5_BEARER_TOKEN}` on every request). Verified via Context7 lookup at clarify time: `tailscale funnel 3000` works against non-Tailscale HTTP callers (perfect for Anthropic Routines + Vercel Functions). Cost: free.
+  - (d) mTLS proxy (HAProxy with client-cert auth) — operationally heavier, no domain prerequisite but cert-management overhead.
+  - (e) ngrok / similar third-party tunneling service — paid, Tailscale Funnel matches the value at zero cost since the operator was already going to use Tailscale for SSH.
+- **Chosen**: (c) Tailscale Funnel + app-layer bearer token.
+- **Rationale**: Removes the domain prerequisite (the operator's stated blocker), free, automatic TLS, verified to work for non-Tailscale-client HTTP callers (Routines + Vercel both reach OK). Auth via app-layer bearer is straightforward to implement at the MT5 REST gateway and rotates cleanly via `/etc/caishen/channels.env`. Trade-off accepted: the Funnel surface IS publicly addressable (anyone with the `*.ts.net` hostname can attempt a connection); we mitigate by enforcing bearer at gateway level (any unauthenticated request gets 401, see FR-009 AC-009-3) and by giving the healthcheck endpoint a separate bearer (FR-005 AC-005-1) so a leaked MT5 bearer can't probe internals.
+- **Migration path**: When the operator acquires a Cloudflare-managed domain later, `/harness:edit "switch VPS-to-cloud transport from Tailscale Funnel to Cloudflare Tunnel + Access Service Token using domain {domain}"` replays this ADR's prior version (option a) as the chosen path.
+- **Affects**: NFR-001 (transport reliability), FR-009 (full FR rewrite — see PRD), FR-005 (healthcheck via same Funnel), Stack table "Tunnel (VPS → cloud)" row, init.sh smoke test (now `tailscale funnel` health), VPS setup script (`infra/vps/setup.sh` installs Tailscale instead of cloudflared).
+
+### ADR-006: Audit retention = 365 days hot in Postgres + cold archive in Blob, configurable via env (resolved per clarify Q6, 2026-05-01)
+- **Context**: Postgres tables grow forever otherwise. The original silent default was 90-day hot retention; the operator preferred 365 days because trader workflows often look back at "last quarter" or "last year same month" for performance review and the original 90-day window broke that promise once "yesterday" became "3 months ago".
+- **Options considered (revised)**: Forever in Postgres (storage cost grows linearly forever); 30-day hot (too aggressive); 90-day hot (original silent default — rejected, breaks "last quarter" review); **365-day hot (CHOSEN)**; configurable-via-env so operator can tune up or down without a code change.
+- **Chosen**: **365-day hot retention in Postgres + cold archive in Vercel Blob** at `archive/{tenant_id}/{YYYY-MM}/` after the hot window. Default `AUDIT_HOT_DAYS=365`, configurable via env var. Daily Vercel cron at 03:30 GMT archives any audit rows older than `AUDIT_HOT_DAYS` to Blob. Dashboard "History" page transparently fetches from cold archive when the operator filters to a date older than `AUDIT_HOT_DAYS` — a Next.js Route Handler mints a signed Blob URL and the page renders with a "loading from archive…" skeleton during the fetch.
+- **Rationale**: 365 days fits comfortably under Neon's free-tier 0.5 GB at single-tenant scale (audit rows are small text — ~few MB/year worst case at a few hundred routine fires + few thousand Telegram interactions/year). Configurable via env so the operator can dial down later if storage cost surfaces. PII (Telegram user IDs, message text) is NOT separated from trading data in v1 because the operator IS the only PII subject — re-evaluate at the multi-tenant migration.
+- **Affects**: NFR-004, FR-007 (EC-007-2 — 90 day reference updated; new Cold Archive Recall behavior implied for the History view).
+
+### ADR-007: Outbound Telegram = direct Bot API (not through Channels session)
+- **Context**: Executor finishes and needs to notify operator. Two paths: route through Channels session (uses LLM tokens to format the message), or POST directly to Telegram Bot API (zero LLM tokens).
+- **Options considered**: Through Channels session (consistent code path, but burns tokens for templated messages); direct Bot API (zero tokens, more reliable for outbound, but two code paths total — Channels for inbound chat, Bot API for outbound notifications); Webhook callback (more setup).
+- **Chosen**: Direct Bot API for outbound notifications. Channels session remains the only path for inbound chat (slash commands + free-text).
+- **Rationale**: Token efficiency + reliability of outbound notifications even when Channels session is down (FR-005 assumes this).
+- **Affects**: NFR-002, NFR-006, FR-019, FR-005.
+
+### ADR-008: Cap-monitoring data source = local counters (v1) + conditional reconciliation cron (resolved per clarify Q5, 2026-05-01)
+- **Context**: NFR-006 needs a way to read current Anthropic cap usage. The original silent default attempted to layer (a) `/v1/usage` API → (b) headless-browser scrape → (c) local counters; the scrape path was rejected by the operator because storing claude.ai login cookies in Vercel env is a credential-rotation problem AND Cloudflare's bot-detection on claude.ai is a reliability risk.
+- **Options considered (revised)**: (i) `/v1/usage` HTTP API if Anthropic exposes one; (ii) headless-browser scrape of `claude.ai/usage` — REJECTED entirely (cookie-storage risk, Cloudflare-bot-detection risk); (iii) local counters only (every cap-burning code path inserts a `cap_usage_local` row, dashboard reads from this); (iv) hybrid: local counters as v1 source of truth + reconciliation cron against `/v1/usage` IF it exists.
+- **Chosen**: V1 ships **local counters only** (option iii). FR-001 spike (AC-001 series) checks whether `/v1/usage` is exposed; if YES, FR-021 follow-on adds a daily reconciliation Vercel cron that compares the local count against Anthropic's reported number for the same date and alerts on drift > 1 slot (option iv path). If `/v1/usage` is NOT exposed, v1 stays on local-counters-only and the dashboard's cap-progress-bar carries a "local-counter-derived" tooltip.
+- **Rationale**: At single-tenant scale local counters are reliable IF every cap-burning code path is instrumented; the surface to instrument is small (Planner routine fire, Executor one-off fire, dashboard `/fire`-driven re-plan, cap-status cron itself). Headless scrape would have been the heaviest implementation surface AND the highest failure-mode surface (auth rotation + bot-detection + DOM drift) — its expected operational benefit at our scale (catching out-of-band fires from the operator's terminal that bypass our counters) is small enough that we accept the residual risk in v1. Reconciliation cron, gated on the spike outcome, gives us a verification path without committing to it speculatively.
+- **Affects**: NFR-006, FR-021 (AC-021-1 simplifies; AC-021-4 obsoleted as written).
+
+### ADR-014: Deployment topology — Vercel deploys directly from build branch; main carries only the cron workflow (resolved 2026-05-06 retrospective)
+- **Context**: v1 + v1.1 was built on `harness/build/001-foundation-routines-channels-dashboard`. Origin/main was scaffolded with `LICENSE` + `README.md` only and never received the build branch's commits because the two histories share no common ancestor (PR creation rejected with "no history in common"). The build branch deploys to Vercel directly via `vercel --prod` from the worktree; this works because Vercel doesn't require a particular branch — it accepts whatever the current working tree has.
+- **Options considered (revised)**: (a) force-push build branch as new main — REJECTED, project rules forbid force-push without explicit ack; (b) merge with `--allow-unrelated-histories` — REJECTED for v1.1 close because the merge commit pollutes the audit chain; (c) cherry-pick only the GitHub Actions workflow file to main, leave build branch as code source-of-truth — CHOSEN; (d) defer reconciliation entirely — REJECTED because GitHub Actions only fires `schedule:` workflows on the default branch, so `cron-fire-due-executors.yml` MUST exist on main.
+- **Chosen**: (c) cherry-pick. Concretely: `cron-fire-due-executors.yml` lives on origin/main (commit `2b580e5`); all v1 + v1.1 production code lives on `harness/build/001-foundation-routines-channels-dashboard` (HEAD `82d8793`); Vercel deploys from build branch via `vercel --prod`; GitHub Actions runs the cron workflow from main.
+- **Rationale**: Captures reality without rewriting either history. The harness/build branch is treated as a long-running release branch (effectively the "v1.x maintenance line"); main is a thin metadata branch. v2 work that comes via a fresh sprint can either re-cherry-pick to main, or — preferred — merge build branch to main once accumulated v1.x debt justifies the unrelated-histories merge ceremony.
+- **Affects**: deployment runbooks; future retrospectives must check both branches; any operator running `git pull origin main` on the VPS gets ONLY the workflow + initial scaffold (the actual code on the VPS is checked out via the build branch explicitly). The Channels VPS install runbook documents `git checkout harness/build/001-foundation-routines-channels-dashboard` immediately after `git clone`.
+
+### ADR-009: Channels-session restart-on-idle (resolved per clarify Q4, 2026-05-01)
+- **Context**: Long-lived LLM sessions can accumulate context bloat or memory pressure over days. The original silent default (daily 03:00 GMT restart) was rejected by the operator because it daily-wipes conversational context the operator may want to reference ("yesterday at the NY open you closed EUR/USD because of CPI; what's your current view?").
+- **Options considered**: (i) never restart (clean if no leak, but RISK-004 unaddressed); (ii) daily 03:00 GMT restart (original silent default — rejected, daily context loss); (iii) restart-on-idle (chosen — restart only when session has been idle ≥ 4h AND it is outside both Euro and NY sessions, currently 22:00–06:00 GMT); (iv) restart-on-symptom (e.g., on memory threshold) — rejected as over-engineered for v1 single-tenant scale.
+- **Chosen**: Option (iii) restart-on-idle. Implementation: a small `systemd` timer fires every 30 min and runs a check script that (a) queries the most recent `telegram_interactions.received_at` for this tenant, (b) confirms current GMT is in `[22:00, 06:00]`, (c) if both conditions met (idle ≥ 4h AND off-hours), runs `systemctl restart caishen-channels` AND posts a `channels_health` row with `restart_reason='scheduled_idle'`. Before restart, the script writes a 90s-mute marker into `channels_health` so the GitHub-Actions-cron healthcheck handler (FR-005 AC-005-2) suppresses any down-alert during the restart window. (The mute-marker is read by the cron handler; the trigger source — Vercel vs GitHub Actions — is irrelevant to the mute logic.)
+- **Rationale**: Preserves conversational context across days for the operator's "what was your view yesterday" workflow while still bounding session lifetime to address RISK-004's memory-pressure concern. The off-hours + idle-gate combination ensures NFR-002 (Telegram p95 ≤ 3s) is never paid as a cold-start cost during trading hours. The Channels-session subagent system prompt also notes that `telegram_interactions` and `routine_runs` are queryable via `mcp__postgres_query`, so even when context HAS been lost (after restart), the operator can ask "what did you tell me yesterday?" and get a real answer reconstructed from audit rows.
+- **Affects**: FR-004 (subagent system prompt mentions postgres-query recovery hint), FR-005 (the `/api/cron/channels-health` handler — fired by GitHub Actions cron per AC-005-2 amendment — honors mute marker).
+
+## Deferred to Negotiation Phase
+
+The following are NOT decided here — Generator and Evaluator negotiate them in `/harness:sprint` § 2c before building:
+
+- Workspace / monorepo layout (`apps/`, `packages/`, etc.)
+- Specific file paths inside each workspace
+- Exact Postgres index list beyond the must-haves in FR-008 AC-008-3
+- Exact API route URLs (`/api/...`) for the dashboard's MT5 + override endpoints
+- Component boundaries within the Next.js dashboard
+- Internal lib choices (date library: date-fns vs Luxon vs Day.js — pick during build, justify in implementation report)
+- Telegram subagent's exact tool-allowlist syntax (Claude Code subagent yaml frontmatter shape)
+- The shape of the queue table for outbound Telegram (if used) — depends on ADR-007 choice
+- The Vercel Sandbox vs alternative impl of the `compute_python` MCP server
+- Headless-browser library if scrape path is chosen for cap monitoring (Playwright already in stack — likely reuse)
+- Test harness for the Channels session's tool integration (likely a record-replay)
