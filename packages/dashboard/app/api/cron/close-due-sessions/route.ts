@@ -128,12 +128,23 @@ export async function GET(req: Request): Promise<Response> {
     Number.isFinite(DEFAULT_TENANT_ID) && DEFAULT_TENANT_ID > 0 ? DEFAULT_TENANT_ID : 1;
   const nowIso = new Date().toISOString();
 
+  // Lookback override — same pattern as fire-due-executors. Default 60 min;
+  // operator can ?lookbackMinutes=240 to recover sessions whose end_time was
+  // missed by GH Actions cron throttling.
+  const url = new URL(req.url);
+  const lookbackRaw = url.searchParams.get('lookbackMinutes') ?? '';
+  const lookbackParsed = Number(lookbackRaw);
+  const lookbackMinutes =
+    Number.isFinite(lookbackParsed) && lookbackParsed > 0 && lookbackParsed <= 1440
+      ? Math.floor(lookbackParsed)
+      : 60;
+
   // 1. SELECT due-for-close rows.
   let dueRows: DueRow[];
   try {
     const result = await runNamedQuery({
       name: 'select_pair_schedules_due_for_close',
-      params: { tenantId, nowIso },
+      params: { tenantId, nowIso, lookbackMinutes },
     });
     dueRows = result.rows as DueRow[];
   } catch (e) {

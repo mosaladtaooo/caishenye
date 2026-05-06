@@ -169,12 +169,26 @@ export async function GET(req: Request): Promise<Response> {
     Number.isFinite(DEFAULT_TENANT_ID) && DEFAULT_TENANT_ID > 0 ? DEFAULT_TENANT_ID : 1;
   const nowIso = new Date().toISOString();
 
+  // Lookback override — for operator-driven recovery when GH Actions cron
+  // misses windows (free-tier `* * * * *` is best-effort; gaps of 30+ min
+  // are documented). Default 60 min (was 5 in v1.1; bumped after live
+  // observation that GH Actions can throttle to one run per ~2.5h).
+  // Recovery via curl: `?lookbackMinutes=240` to catch the morning's
+  // missed London window from later in the day.
+  const url = new URL(req.url);
+  const lookbackRaw = url.searchParams.get('lookbackMinutes') ?? '';
+  const lookbackParsed = Number(lookbackRaw);
+  const lookbackMinutes =
+    Number.isFinite(lookbackParsed) && lookbackParsed > 0 && lookbackParsed <= 1440
+      ? Math.floor(lookbackParsed)
+      : 60;
+
   // 1. SELECT due rows.
   let dueRows: DueRow[];
   try {
     const result = await runNamedQuery({
       name: 'select_pair_schedules_due_for_fire',
-      params: { tenantId, nowIso },
+      params: { tenantId, nowIso, lookbackMinutes },
     });
     dueRows = result.rows as DueRow[];
   } catch (e) {
@@ -338,6 +352,7 @@ export async function GET(req: Request): Promise<Response> {
   return jsonRes(200, {
     ok: true,
     tick: nowIso,
+    lookbackMinutes,
     cascadeCancelledCount: cancelledIds.length,
     dueCount: dueRows.length,
     dedupedCount: dedupedRows.length,
