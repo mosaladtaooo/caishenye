@@ -19,6 +19,8 @@
  * adding more users post first-enrollment.
  */
 
+import { PasskeyRegisterForm } from './PasskeyRegisterForm';
+
 interface PageProps {
   searchParams: Promise<{ token?: string }>;
 }
@@ -62,10 +64,7 @@ export default async function PasskeyRegisterPage(props: PageProps): Promise<Rea
         Use the device you want to authenticate with. After this enrolment, the registration token
         becomes single-use; rotate it via <code>infra/vps/setup.sh</code> for subsequent users.
       </p>
-      {/* PasskeyRegisterForm placeholder — calls the Passkey provider's
-          challenge endpoint then navigator.credentials.create(); full
-          client component lands when Auth.js wire-up resolves operator
-          AUTH_URL post-deploy. */}
+      <PasskeyRegisterForm />
     </main>
   );
 }
