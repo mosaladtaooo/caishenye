@@ -75,6 +75,76 @@ Operator-paced. If/when rotation is desired:
 
 ---
 
+## KI-007 — 8 dashboard routes still return 401 with operator-session cookie
+**Added**: 2026-05-06
+**Feature**: 001-foundation-routines-channels-dashboard
+**Severity**: Major (blocks dashboard `/overrides` actions, `/history` archive view, `/reports` artefact downloads)
+**Category**: Code Quality (auth-cookie sweep gap)
+
+### Description
+v1.1.1 commit `e960305` added operator-session cookie support to `/api/overview` only. The other 8 auth-using API routes still call `resolveOperatorFromSession` which expects an Auth.js cookie. Operators logged in via the v1.1 token-flow get 401 on:
+
+- `/api/overrides/close-pair` (POST)
+- `/api/overrides/close-all` (POST)
+- `/api/overrides/edit-position` (POST)
+- `/api/overrides/pause` (POST)
+- `/api/overrides/resume` (POST)
+- `/api/overrides/replan` (POST)
+- `/api/history/archive/[month]` (GET)
+- `/api/reports/[id]` (GET)
+
+Plus the dashboard `/schedule`, `/history`, `/pair/[pair]` server-side data-fetch routes if they exist (they may currently render via client-side SWR pulling `/api/overview`-shaped routes).
+
+### Where
+- `packages/dashboard/lib/override-bind.ts` `resolveOperatorFromSession` — only reads Auth.js cookies
+- All 8 routes listed above invoke `resolveOperatorFromSession` directly + override routes also wrap in `executeOverride` lib
+
+### Why deferred
+- Mixed CSRF middleware on /overrides routes makes the sweep nontrivial — each route needs both auth + CSRF flow updated together
+- v1.1.1 ship priority was the executor missed-fire fix (KI-006); dashboard read-only viewing already works
+- The trading core operates entirely without these routes; operator-side overrides can be done via direct Postgres or Telegram bot in the meantime
+
+### Resolution plan
+v1.2 sweep: extract a shared `resolveOperatorAuth(req)` helper that tries operator-session cookie first, then Auth.js cookie, then INTERNAL_API_TOKEN bearer (for cron/internal callers). Replace all 9 callsites including overview. ~30 LOC + 4 hours of CSRF integration testing on overrides.
+
+### Operator workaround until v1.2
+- Dashboard `/overview` works (read-only mission-control snapshot)
+- Override actions: ask Telegram bot ("close all positions on EUR/USD", "pause trading until tomorrow") — bot has DB + MT5 access via subagent tools
+- History/reports browsing: query Postgres directly via `bun --env-file=".env.local"` or Vercel Postgres web console
+
+---
+
+## KI-008 — Vercel Blob upload returns 502 (private store)
+**Added**: 2026-05-06
+**Feature**: 001-foundation-routines-channels-dashboard
+**Severity**: Minor (post-trade artifact only; trade execution unaffected)
+**Category**: Code Quality (third-party config)
+
+### Description
+First live executor fires 2026-05-06 09:23-09:28 GMT placed real trades successfully (orders #277132741, #277132850, #277134012) but Telegram digests reported `BlobReport: degraded(502)` and `blob upload 502 — report pending retry` for all three. The executor's HTML reasoning-report archive is failing on the Vercel Blob upload step.
+
+The trade itself + audit row + Telegram digest all succeed; only the report-archive write to Vercel Blob is breaking. Per FR-015 architecture, the report URL is meant to be reviewable from `/history` and `/reports/[id]` — without the blob upload, those routes will show null `report_md_blob_url` for these trades.
+
+### Where
+- `packages/dashboard/app/api/internal/blob/upload/route.ts` (the Vercel proxy that the executor calls)
+- Vercel Blob store binding in the project (likely `caishen-v2-blob` per session 5h migration)
+
+### Why this surfaced now
+First live executor fires were 2026-05-06 09:23+. Pre-v1.1.1 the executor was never actually firing real trades, so the blob upload code path was never exercised end-to-end with real session-id-named files.
+
+### Resolution plan
+Likely root causes (order of investigation):
+1. Vercel Blob token (`BLOB_READ_WRITE_TOKEN`) may not be in production env or is wrong scope
+2. The Blob store may have been disconnected during the session 5h Vercel scope migration
+3. The upload payload may be too large (Vercel free-tier Blob has size limits)
+
+Diagnose with: `vercel logs` filtered to `/api/internal/blob/upload` requests around 09:23-09:28 UTC. The route's `mapUpstreamError` will log the actual reason.
+
+### Operator workaround until v1.2
+Trade-decision audit data is preserved in `routine_runs` (with the Anthropic session_id + URL) and `executor_reports.summary_md` (the one-paragraph fallback). Full HTML reasoning replay requires opening the Anthropic session URL directly.
+
+---
+
 ## KI-006 — GitHub Actions cron throttles `* * * * *` to multi-hour gaps under load
 **Added**: 2026-05-06
 **Feature**: 001-foundation-routines-channels-dashboard
