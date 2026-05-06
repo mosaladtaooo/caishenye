@@ -75,6 +75,56 @@ Operator-paced. If/when rotation is desired:
 
 ---
 
+## KI-005 — Auth.js v5 WebAuthn passkey registration not working
+**Added**: 2026-05-06
+**Feature**: 001-foundation-routines-channels-dashboard
+**Severity**: Major (blocks dashboard access)
+**Category**: Code Quality (third-party beta lib integration)
+
+### Description
+The dashboard's `/auth/passkey-register` page renders correctly but the actual passkey registration flow fails with `error=Configuration` returned by Auth.js v5's internal error page (which itself returns 500). Multiple v1.1 fix attempts:
+1. Built the missing `PasskeyRegisterForm` client component (it was a placeholder comment in v1)
+2. Fixed middleware to make `/auth/passkey-register` public
+3. Added email field for the Auth.js Passkey provider's user-identifier requirement
+4. Fixed the form to use `useId()` for label binding
+
+After all fixes, `next-auth/webauthn`'s `signIn('passkey', {action:'register', email, redirectTo})` triggers a `GET /api/auth/error?error=Configuration → 500`. Auth.js's own error page handler is failing.
+
+### Where
+- `packages/dashboard/app/auth/passkey-register/page.tsx` (server)
+- `packages/dashboard/app/auth/passkey-register/PasskeyRegisterForm.tsx` (client; new in v1.1 attempt)
+- `packages/dashboard/app/api/auth/[...nextauth]/route.ts` (Auth.js handler)
+- `packages/dashboard/lib/auth.ts` (Auth.js config)
+- Drizzle schema `packages/db/src/schema/users.ts` (users + accounts + sessions + verification_tokens + authenticators)
+
+### Why deferred
+- Auth.js v5 + WebAuthn is **in beta**. The library is moving fast and each fix surfaces another runtime path issue.
+- Dashboard is a quality-of-life surface, NOT load-bearing for the trading core. Operator has multiple working alternatives:
+  1. Telegram bot free-text Q&A (proven working — bot replied to env-var diagnostic)
+  2. Anthropic session URLs (live reasoning trace)
+  3. Direct Postgres query via `bun --env-file=.env.local`
+  4. Vercel Postgres web console
+- The trading core (planner + cron + executor) operates entirely independently of dashboard auth.
+
+### Resolution plan
+Three options for v1.2 (operator's choice):
+
+1. **Stick with Auth.js v5 stable Passkey** — wait for v5 stable release; the beta is targeted for stabilization 2026-Q3 per Auth.js roadmap.
+2. **Switch to SimpleWebAuthn directly** — bypass next-auth/webauthn; build registration/auth as bare WebAuthn flows + custom session cookie. ~200 LOC; full control.
+3. **Switch auth provider** — Clerk / Supabase Auth / Lucia (simpler v5-stable WebAuthn). One-day port.
+
+Most likely path: option 2 (SimpleWebAuthn direct) since dependencies are already installed (`@simplewebauthn/server` 9, `@simplewebauthn/browser` 9.0.1).
+
+### Operator workaround until v1.2
+Until the dashboard auth is fixed, operate via:
+- Telegram bot (full read-only DB access; chat with the bot for any data)
+- Anthropic session URLs printed in `routine_runs.session_url` column (visible via Telegram or direct query)
+- Vercel Postgres web console for ad-hoc data exploration
+
+The dashboard's value-add over these is ONLY: live-updating UI, organized per-pair detail pages, and override action buttons (close-pair / pause / replan). All three are recoverable via direct API calls + Telegram with `--dangerously-skip-permissions` enabled (which we already deployed in this session).
+
+---
+
 ## KI-004 — Spike 3 R1 deployed-prompt READ endpoint never resolved
 **Added**: 2026-05-06
 **Feature**: 001-foundation-routines-channels-dashboard
