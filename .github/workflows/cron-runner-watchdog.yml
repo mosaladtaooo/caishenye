@@ -1,0 +1,45 @@
+# cron-runner-watchdog -- Vercel-cron-blocked-on-Hobby pivot.
+#
+# Vercel Hobby tier blocks sub-daily crons. The runner-watchdog needs ~30-min
+# cadence to detect a dead VPS cron-runner (clarify Q4 backstop, secondary
+# path after the runner's self-watch).
+#
+# GH-Actions throttling concern (KI-006) only affects `* * * * *` (every-minute);
+# `*/30` is well within GH-Actions tolerance — unlikely to be throttled.
+#
+# Required GitHub repo Secrets:
+#   - CRON_SECRET
+#   - VERCEL_DEPLOYMENT_URL
+#
+# Calls /api/cron/runner-watchdog which queries cron_runner_health table and
+# alerts via direct Telegram Bot API if all runners >30 min stale.
+
+name: cron-runner-watchdog
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: cron-runner-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    name: curl /api/cron/runner-watchdog
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: curl Vercel handler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOYMENT_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$DEPLOY_URL" ]; then
+            echo "::error::CRON_SECRET or VERCEL_DEPLOYMENT_URL not set in repo Secrets"
+            exit 1
+          fi
+          curl --fail-with-body -sS --max-time 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$DEPLOY_URL/api/cron/runner-watchdog"

@@ -7,7 +7,6 @@
   "crons": [
     { "path": "/api/cron/orphan-detect", "schedule": "15 4 * * *" },
     { "path": "/api/cron/audit-archive", "schedule": "30 3 * * *" },
-    { "path": "/api/cron/cap-rollup", "schedule": "0 12 * * *" },
-    { "path": "/api/cron/runner-watchdog", "schedule": "*/30 * * * *" }
+    { "path": "/api/cron/cap-rollup", "schedule": "0 12 * * *" }
   ]
 }
