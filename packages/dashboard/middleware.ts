@@ -17,6 +17,7 @@
  */
 
 import { type NextRequest, NextResponse } from 'next/server';
+import { OPERATOR_COOKIE_NAME, verifyOperatorCookie } from './lib/operator-session';
 
 const PUBLIC_PATHS = [
   '/login',
@@ -29,7 +30,7 @@ const PUBLIC_PATHS = [
   '/favicon.ico',
 ];
 
-export function middleware(req: NextRequest): NextResponse | undefined {
+export async function middleware(req: NextRequest): Promise<NextResponse | undefined> {
   const { pathname } = req.nextUrl;
 
   // Public paths: pass through.
@@ -43,20 +44,25 @@ export function middleware(req: NextRequest): NextResponse | undefined {
   // don't gate at middleware because Vercel's cron infra hits the route
   // directly with its bearer.
 
-  // Auth check: read the session cookie. Auth.js v5 sets `__Secure-` or
-  // `authjs.session-token` depending on protocol. We check both. If absent,
-  // redirect to /login.
-  const sessionCookie =
-    req.cookies.get('__Secure-authjs.session-token')?.value ??
-    req.cookies.get('authjs.session-token')?.value;
-  if (!sessionCookie) {
-    const url = req.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('next', pathname);
-    return NextResponse.redirect(url);
+  // Auth check: try v1.1 operator-session cookie first (KI-005 workaround
+  // for broken Auth.js v5 WebAuthn beta). Fall back to legacy Auth.js cookie
+  // if v1.2 ships the proper SimpleWebAuthn flow on top of Auth.js again.
+  const operatorCookie = req.cookies.get(OPERATOR_COOKIE_NAME)?.value;
+  if (typeof operatorCookie === 'string' && (await verifyOperatorCookie(operatorCookie))) {
+    return NextResponse.next();
   }
 
-  return NextResponse.next();
+  const authJsCookie =
+    req.cookies.get('__Secure-authjs.session-token')?.value ??
+    req.cookies.get('authjs.session-token')?.value;
+  if (typeof authJsCookie === 'string' && authJsCookie.length > 0) {
+    return NextResponse.next();
+  }
+
+  const url = req.nextUrl.clone();
+  url.pathname = '/login';
+  url.searchParams.set('next', pathname);
+  return NextResponse.redirect(url);
 }
 
 export const config = {
