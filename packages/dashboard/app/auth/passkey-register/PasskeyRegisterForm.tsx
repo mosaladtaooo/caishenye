@@ -26,17 +26,22 @@ import { useState } from 'react';
 export function PasskeyRegisterForm(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debug, setDebug] = useState<string | null>(null);
 
   const handleRegister = async (): Promise<void> => {
     setBusy(true);
     setError(null);
+    setDebug('1/4 calling signIn(passkey, action=register)...');
     try {
       // Auth.js v5 Passkey provider: action='register' creates a new
       // credential. Without this flag, the default action is 'authenticate'
       // (which would fail since no passkey exists yet).
-      await signIn('passkey', { action: 'register', redirectTo: '/' });
+      const result = await signIn('passkey', { action: 'register', redirectTo: '/' });
+      setDebug(`done. result=${JSON.stringify(result).slice(0, 200)}`);
+      // If signIn doesn't redirect (e.g., on error), we land here.
+      setBusy(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
       setBusy(false);
     }
   };
@@ -68,7 +73,19 @@ export function PasskeyRegisterForm(): React.ReactElement {
             fontFamily: 'monospace',
           }}
         >
-          {error}
+          ❌ {error}
+        </p>
+      )}
+      {debug !== null && (
+        <p
+          style={{
+            marginTop: '0.5rem',
+            color: '#888',
+            fontSize: '0.75rem',
+            fontFamily: 'monospace',
+          }}
+        >
+          {debug}
         </p>
       )}
     </div>
