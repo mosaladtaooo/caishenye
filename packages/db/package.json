@@ -24,6 +24,7 @@
     "./queries/cap-counter": "./src/queries/cap-counter.ts",
     "./schema/channels-health": "./src/schema/channels-health.ts",
     "./schema/pair-configs": "./src/schema/pair-configs.ts",
+    "./schema/cron-runner-health": "./src/schema/cron-runner-health.ts",
     "./lint/tenant-id": "./src/lint/tenant-id-lint.ts"
   },
   "scripts": {

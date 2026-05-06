@@ -1,10 +1,15 @@
 /**
- * Override-handler integration adapter — binds the pure executeOverride()
+ * Override-handler integration adapter -- binds the pure executeOverride()
  * library (lib/override-handler.ts) to live infrastructure:
- *   - Auth.js session → operator user resolution
  *   - MT5 REST client (mt5-server.ts)
  *   - Postgres @caishen/db audit-row writes
  *   - Telegram broadcast queue
+ *
+ * v1.2 FR-025 D3: the Auth.js session resolver previously here
+ * (`resolveOperatorFromSession`) was MOVED to lib/auth-js-session.ts during
+ * the cookie sweep. Routes no longer call this module for auth -- they call
+ * lib/resolve-operator-auth.ts. This module's only public surface today is
+ * `buildOverrideDeps` (the MT5 + audit verb factory).
  *
  * Why a separate module?
  *   - Keeps lib/override-handler.ts pure / unit-testable (no DB / network).
@@ -28,47 +33,7 @@ import type {
 } from './override-handler';
 import { sendTelegramBroadcast } from './telegram-broadcast';
 
-export interface ResolvedOperator {
-  tenantId: number;
-  operatorUserId: number;
-}
-
-/**
- * Resolve a session cookie to {tenantId, operatorUserId}. Returns null on
- * unauthenticated / unknown session.
- *
- * In the live wire-up (post Auth.js [...nextauth] factory init), this
- * queries the `sessions` table for the session row and joins to `users`.
- * For now we surface a guardrail: throw a known error if AUTH_URL is unset
- * so misconfig doesn't silently let unauthenticated traffic through.
- */
-export async function resolveOperatorFromSession(
-  sessionToken: string | undefined,
-): Promise<ResolvedOperator | null> {
-  if (sessionToken === undefined || sessionToken.length === 0) return null;
-  // Live wire-up lands when AUTH_URL is provided post-deploy. Until then
-  // we fail closed.
-  const authUrl = process.env.AUTH_URL;
-  if (authUrl === undefined || authUrl.length === 0) {
-    throw new Error(
-      'override-bind: AUTH_URL missing — Auth.js session resolution requires it; refusing to authenticate',
-    );
-  }
-  const tenantDb = getTenantDb(1);
-  const { sessions, users } = await import('@caishen/db/schema/users');
-  const rows = await tenantDb.drizzle
-    .select({
-      sessionUserId: sessions.userId,
-      tenantId: users.tenantId,
-      userId: users.id,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.sessionToken, sessionToken));
-  const row = rows[0];
-  if (!row) return null;
-  return { tenantId: row.tenantId, operatorUserId: row.userId };
-}
+export type { ResolvedOperator } from './auth-js-session';
 
 /**
  * Build the verb-specific MT5 closure + audit-row helpers for an override

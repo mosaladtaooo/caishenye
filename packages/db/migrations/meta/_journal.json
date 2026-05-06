@@ -15,6 +15,20 @@
       "when": 1777743754336,
       "tag": "0001_seed_pairs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778803200000,
+      "tag": "0002_v1_2_cron_runner_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778889600000,
+      "tag": "0003_v1_2_webauthn",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,10 @@
-# cron-close-due-sessions -- every-minute session-end close tick.
+# DEPRECATED: replaced by VPS-NSSM cron-runner per ADR-015 in v1.2.
+# Kept for emergency manual-dispatch fallback only (workflow_dispatch).
 #
-# Curls the Vercel-deployed /api/cron/close-due-sessions handler. The handler
-# polls pair_schedules for rows where status='fired' AND end_time_gmt has
-# passed (within 5-min lookback), then calls DELETE
-# /api/internal/mt5/positions/by-symbol/{symbol} to flatten any still-open
-# positions for the pair.
+# cron-close-due-sessions -- formerly fired every 1 min via GH Actions
+# `schedule:`. Per KI-006 the schedule was empirically firing 5/23h instead
+# of 1380/23h due to GH-Actions cron throttling. v1.2 FR-024 moves the
+# schedule to a VPS-NSSM cron-runner.
 #
 # Why this exists: v1.1 fired executors at start_time_gmt but had no
 # scheduler enforcing end_time_gmt. The verbatim SPARTAN prompt mandates
@@ -20,8 +20,7 @@
 name: cron-close-due-sessions
 
 on:
-  schedule:
-    - cron: '* * * * *'
+  # schedule: removed by FR-024 D5 -- replaced by VPS-NSSM cron-runner.
   workflow_dispatch:
 
 concurrency:

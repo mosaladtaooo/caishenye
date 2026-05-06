@@ -1,5 +1,5 @@
 /**
- * /api/reports/[id] — FR-015 AC-015-1.
+ * /api/reports/[id] -- FR-015 AC-015-1.
  *
  * Read one executor_reports row by id, tenant-scoped via session resolution.
  * Hot vs cold (AUDIT_HOT_DAYS) decides whether the response signals
@@ -7,13 +7,14 @@
  * fetch path). Both branches return a signed Blob URL (1h expiry).
  *
  * Auth: session-required. CSRF not needed (GET).
+ *
+ * v1.2 FR-025 D3: auth swept to lib/resolve-operator-auth.
  */
 
-import { resolveOperatorFromSession } from '@/lib/override-bind';
 import { getExecutorReportById, mintBlobSignedUrl } from '@/lib/reports-read';
+import { resolveOperatorAuth } from '@/lib/resolve-operator-auth';
 
 const AUDIT_HOT_DAYS_DEFAULT = 365;
-const SESSION_COOKIE_NAMES = ['__Secure-authjs.session-token', 'authjs.session-token'];
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -29,21 +30,16 @@ export async function GET(req: Request, ctx: RouteContext): Promise<Response> {
     });
   }
 
-  const sessionTok = readSessionCookie(req);
-  let resolved: { tenantId: number } | null;
-  try {
-    resolved = await resolveOperatorFromSession(sessionTok);
-  } catch {
-    resolved = null;
-  }
-  if (resolved === null) {
-    return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), {
-      status: 401,
+  const auth = await resolveOperatorAuth(req);
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ ok: false, error: auth.reason }), {
+      status: auth.status,
       headers: { 'content-type': 'application/json' },
     });
   }
+  const tenantId = auth.operator.tenantId;
 
-  const row = await getExecutorReportById(id, resolved.tenantId);
+  const row = await getExecutorReportById(id, tenantId);
   if (row === null) {
     return new Response(JSON.stringify({ ok: false, error: 'not found' }), {
       status: 404,
@@ -68,15 +64,4 @@ export async function GET(req: Request, ctx: RouteContext): Promise<Response> {
     }),
     { status: 200, headers: { 'content-type': 'application/json' } },
   );
-}
-
-function readSessionCookie(req: Request): string | undefined {
-  const raw = req.headers.get('cookie');
-  if (raw === null) return undefined;
-  const parts = raw.split(';').map((p) => p.trim());
-  for (const name of SESSION_COOKIE_NAMES) {
-    const match = parts.find((p) => p.startsWith(`${name}=`));
-    if (match !== undefined) return match.slice(name.length + 1);
-  }
-  return undefined;
 }

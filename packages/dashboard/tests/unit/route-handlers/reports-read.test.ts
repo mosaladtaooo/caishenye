@@ -34,6 +34,10 @@ afterEach(() => {
 });
 
 async function importRoute() {
+  // FR-025 D3: auth resolver moved to lib/auth-js-session.
+  vi.doMock('../../../lib/auth-js-session', () => ({
+    resolveOperatorFromSession: resolveOperatorSpy,
+  }));
   vi.doMock('../../../lib/override-bind', () => ({
     resolveOperatorFromSession: resolveOperatorSpy,
   }));

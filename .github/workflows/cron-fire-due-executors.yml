@@ -1,6 +1,11 @@
-# cron-fire-due-executors — fires every 1 min (best-effort; GH Actions cron
-# has documented up-to-15-min jitter, acceptable for SPARTAN intraday session
-# starts where the verbatim 15–30 min post-news buffer absorbs minor lateness).
+# DEPRECATED: replaced by VPS-NSSM cron-runner per ADR-015 in v1.2.
+# Kept for emergency manual-dispatch fallback only (workflow_dispatch).
+#
+# cron-fire-due-executors — formerly fired every 1 min via GH Actions
+# `schedule:`. Per KI-006 the schedule was empirically firing 5/23h instead
+# of 1380/23h due to GH-Actions cron throttling on free tier; v1.2 FR-024
+# moves the schedule to a VPS-NSSM cron-runner that ticks every 60s without
+# throttling.
 #
 # Curls the Vercel-deployed /api/cron/fire-due-executors handler. The handler
 # polls pair_schedules for status='scheduled' rows whose start_time_gmt has
@@ -25,8 +30,7 @@
 name: cron-fire-due-executors
 
 on:
-  schedule:
-    - cron: '* * * * *'
+  # schedule: removed by FR-024 D5 -- replaced by VPS-NSSM cron-runner.
   workflow_dispatch:
 
 # Prevent overlapping invocations — if a tick is still running when the next

@@ -1,25 +1,25 @@
 /**
- * Auth.js v5 catch-all route — live factory wired up (Group B step 6).
+ * Auth.js v5 catch-all route -- v1.2 FR-023 D4: Passkey provider DROPPED.
  *
- * NextAuth() is initialised lazily on first request via getHandlers() so
- * tests don't need AUTH_SECRET / DATABASE_URL at module-load time. When
- * the operator has not yet supplied AUTH_URL / AUTH_SECRET (pre first
- * preview deploy), the factory throws with a typed error and the route
- * returns 503 — the operator's pre-deploy checklist surfaces this.
+ * v1.1 design used Auth.js v5 + the experimental Passkey (WebAuthn) provider,
+ * which never worked end-to-end (KI-005). v1.2 replaces it with the four
+ * /api/auth/webauthn/* routes built on @simplewebauthn v13 directly.
  *
- * The Passkey provider runs experimental WebAuthn under Auth.js v5 beta
- * (per Context7 verification 2026-05-04). The DrizzleAdapter shape consumes
- * the raw Drizzle client; tenant scoping is enforced at the read layer
- * (queries/*.ts) since Auth.js itself is single-tenant.
+ * This route is preserved (not deleted) because middleware imports the
+ * Auth.js handler shape; removing the file would cascade through too many
+ * places. It now:
+ *   - keeps a Credentials provider stub that ALWAYS rejects
+ *   - keeps DrizzleAdapter wired (existing user/account/session tables stay
+ *     in v1.2 as zero-write dead-weight per clarify Q10; KI-011 tracks the
+ *     v1.3 Drizzle drop)
+ *   - returns the same 503 misconfig shape until env is provisioned
  *
- * Per AC-006 + NFR-009: this route is one of the few non-auth-gated paths
- * the middleware lets through (PUBLIC_PATHS includes /api/auth).
+ * Per AC-006 + NFR-009: still one of the few non-auth-gated paths the
+ * middleware lets through (PUBLIC_PATHS includes /api/auth).
  *
- * INITIAL_REGISTRATION_TOKEN gate: the first passkey enrollment requires
- * the operator to type the token issued at infra/vps/setup.sh time. The
- * gate runs in the events.signIn callback below — declines the sign-in
- * if the user record doesn't exist yet AND the registration token is
- * missing or wrong. Once a user exists, future logins skip this check.
+ * INITIAL_REGISTRATION_TOKEN: now consumed by /api/auth/operator-login (the
+ * EMERGENCY_TOKEN_LOGIN_ENABLED-flagged token-fallback path). The new
+ * passkey flow has no equivalent gate -- the device IS the gate.
  */
 
 const FACTORY_INIT_ERROR_MESSAGE =
@@ -49,27 +49,31 @@ async function getHandlers(): Promise<NextAuthHandlers | null> {
   try {
     const { default: NextAuth } = await import('next-auth');
     const { DrizzleAdapter } = await import('@auth/drizzle-adapter');
-    const { default: Passkey } = await import('next-auth/providers/passkey');
+    const Credentials = (await import('next-auth/providers/credentials')).default;
     const { getTenantDb } = await import('@caishen/db/client');
     const tenantDb = getTenantDb(1);
 
+    // v1.2 FR-023 D4: Passkey provider dropped. Credentials stub is kept
+    // ONLY so middleware's import of the auth() handler doesn't break;
+    // the authorize callback always returns null -> auth always fails
+    // through this provider. Real auth flows through:
+    //   /api/auth/webauthn/* (passkey)  AND
+    //   /api/auth/operator-login (token fallback, AC-023-5 flagged)
     const { handlers } = NextAuth({
       adapter: DrizzleAdapter(tenantDb.drizzle),
       secret: authSecret,
       session: { strategy: 'database' },
-      providers: [Passkey],
-      experimental: { enableWebAuthn: true },
+      providers: [
+        Credentials({
+          name: 'caishen-disabled',
+          credentials: {},
+          async authorize() {
+            return null;
+          },
+        }),
+      ],
       pages: { signIn: '/login' },
       trustHost: true,
-      callbacks: {
-        async signIn({ user }) {
-          // INITIAL_REGISTRATION_TOKEN gate is enforced at the
-          // /auth/passkey-register/page.tsx layer — by the time we get
-          // here Auth.js has a user record. Any user that survives the
-          // register page is allowed.
-          return Boolean(user);
-        },
-      },
     });
 
     cachedHandlers = handlers as NextAuthHandlers;

@@ -18,7 +18,53 @@ moves to a Linux VPS.
 | caishen-mt5-proxy        | NSSM    | localhost:18000 (HTTP) | Bun reverse-proxy; bearer-validates → :8000      |
 | caishen-ffcal-proxy      | NSSM    | localhost:18081 (HTTP) | Bun reverse-proxy; bearer-validates → :8081      |
 | **caishen-channels**     | NSSM    | n/a (long-poll client) | **Always-on Telegram surface (FR-004)** — this folder installs it |
+| **caishen-cron-runner**  | NSSM    | n/a (HTTP client)      | **Cron tick runner (FR-024 v1.2)** — replaces GH-Actions cron |
 | n8n (legacy)             | NSSM    | localhost:5678         | Parallel-run during cutover; stop after v2 verified |
+
+## v1.2 cron-runner runbook (FR-024)
+
+The new caishen-cron-runner ticks every 60s, hitting Vercel:
+1. `GET /api/cron/fire-due-executors` — fires due Executors per pair
+2. `GET /api/cron/close-due-sessions` — closes pending+positions at session end
+3. `POST /api/cron/health` — inbound liveness ping (writes to `cron_runner_health`)
+
+Backstop: a Vercel cron at `*/30 * * * *` calls `/api/cron/runner-watchdog`
+which checks `MAX(pinged_at)` staleness and emits a direct Telegram alert if
+stale > 30 min.
+
+Install once on the VPS (Administrator pwsh):
+
+```powershell
+# Use -DryRun first to preview commands without changing anything:
+.\install-cron-runner-service.ps1 `
+    -BunPath        "C:\Users\Administrator\.bun\bin\bun.exe" `
+    -NssmPath       "C:\windows\system32\nssm.exe" `
+    -RepoRoot       "C:\caishen\caishenye" `
+    -EnvFile        "C:\caishen\cron-runner.env" `
+    -DryRun
+
+# Real install (drops -DryRun):
+.\install-cron-runner-service.ps1 `
+    -BunPath        "C:\Users\Administrator\.bun\bin\bun.exe" `
+    -NssmPath       "C:\windows\system32\nssm.exe" `
+    -RepoRoot       "C:\caishen\caishenye" `
+    -EnvFile        "C:\caishen\cron-runner.env"
+```
+
+The env file `C:\caishen\cron-runner.env` MUST contain:
+```
+CRON_SECRET=<same value as Vercel's CRON_SECRET env>
+VERCEL_BASE_URL=https://caishenv2.vercel.app
+TELEGRAM_BOT_TOKEN=<bot token; same as channels uses>
+OPERATOR_CHAT_ID=<the operator's Telegram chat id>
+CAISHEN_RUNNER_ID=vps-windows-1
+```
+
+Logs land at `C:\caishen\logs\caishen-cron-runner.{out,err}.log` (rotated daily).
+
+After install, deactivate the GH-Actions schedules (already done in v1.2 — the
+.github/workflows/cron-{fire,close}-due-*.yml files now have `schedule:` removed
+but keep `workflow_dispatch:` for emergency manual fires).
 
 Tailscale Funnel exposes `localhost:18000` on `https://<host>.<tailnet>.ts.net/`
 (port 443) and `localhost:18081` on the same host port 8443. The bearer

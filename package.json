@@ -12,6 +12,7 @@
     "packages/db",
     "packages/routines",
     "packages/channels",
+    "packages/cron-runner",
     "packages/dashboard"
   ],
   "scripts": {

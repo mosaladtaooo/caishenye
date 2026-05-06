@@ -1,8 +1,8 @@
 /**
- * POST /api/overrides/replan — force a fresh Planner fire.
+ * POST /api/overrides/replan -- force a fresh Planner fire.
  *
  * R3-followup split-tx flow:
- *   Tx A (cancel + audit insert) → external /fire (no DB tx) → Tx B (settle)
+ *   Tx A (cancel + audit insert) -> external /fire (no DB tx) -> Tx B (settle)
  *
  * AC-018-1: a successful response returns the new one_off_id.
  * AC-018-2: in-flight pair_schedules cancelled in Tx A.
@@ -13,22 +13,23 @@
  *           {confirm_low_cap: true}; out-of-slots is unconditional.
  *
  * Failure mapping:
- *   Tx A throws       → 500
- *   /fire fails       → 502 (Tx B still settles audit to failed)
- *   Tx B throws       → 500 with stuckRowId surfaced for orphan-detect
- *   /fire succeeds + Tx B succeeds → 200 with anthropicOneOffId
+ *   Tx A throws       -> 500
+ *   /fire fails       -> 502 (Tx B still settles audit to failed)
+ *   Tx B throws       -> 500 with stuckRowId surfaced for orphan-detect
+ *   /fire succeeds + Tx B succeeds -> 200 with anthropicOneOffId
+ *
+ * v1.2 FR-025 D3: auth swept to lib/resolve-operator-auth.
  */
 
 import { CSRF_COOKIE_NAME, validateCsrf } from '@/lib/csrf';
-import { resolveOperatorFromSession } from '@/lib/override-bind';
 import {
   firePlannerRoutine,
   getCapRemainingSlots,
   txACancelAndAudit,
   txBSettleAudit,
 } from '@/lib/replan-flow';
+import { resolveOperatorAuth } from '@/lib/resolve-operator-auth';
 
-const SESSION_COOKIE_NAMES = ['__Secure-authjs.session-token', 'authjs.session-token'];
 const LOW_CAP_THRESHOLD = 2;
 
 interface ReplanRequestBody {
@@ -41,17 +42,6 @@ function jsonRes(status: number, body: unknown): Response {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}
-
-function readSessionCookie(req: Request): string | undefined {
-  const raw = req.headers.get('cookie');
-  if (raw === null) return undefined;
-  const parts = raw.split(';').map((p) => p.trim());
-  for (const name of SESSION_COOKIE_NAMES) {
-    const match = parts.find((p) => p.startsWith(`${name}=`));
-    if (match !== undefined) return match.slice(name.length + 1);
-  }
-  return undefined;
 }
 
 function readCsrfCookie(req: Request): string | undefined {
@@ -77,9 +67,14 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(500, { ok: false, error: 'server misconfigured: AUTH_SECRET missing' });
   }
 
-  const operator = await resolveOperatorFromSession(readSessionCookie(req));
-  if (operator === null) {
-    return jsonRes(401, { ok: false, error: 'unauthenticated' });
+  const auth = await resolveOperatorAuth(req);
+  if (!auth.ok) {
+    return jsonRes(auth.status, { ok: false, error: auth.reason });
+  }
+  const operatorTenantId = auth.operator.tenantId;
+  const operatorUserId = Number(auth.operator.id);
+  if (!Number.isFinite(operatorUserId) || operatorUserId <= 0) {
+    return jsonRes(401, { ok: false, error: 'internal-token not permitted for override actions' });
   }
 
   let body: ReplanRequestBody;
@@ -98,14 +93,14 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(403, { ok: false, error: `csrf invalid: ${csrfResult.reason ?? 'unknown'}` });
   }
 
-  // AC-018-3 — cap-confirm gate. confirm_low_cap MUST be exactly true; out
+  // AC-018-3 -- cap-confirm gate. confirm_low_cap MUST be exactly true; out
   // of slots is unconditional regardless of confirm.
-  const capRemaining = await getCapRemainingSlots(operator.tenantId);
+  const capRemaining = await getCapRemainingSlots(operatorTenantId);
   const confirmLowCap = body.confirm_low_cap === true;
   if (capRemaining <= 0) {
     return jsonRes(409, {
       ok: false,
-      error: 'cap exhausted — daily limit reached',
+      error: 'cap exhausted -- daily limit reached',
       capRemaining,
     });
   }
@@ -117,12 +112,12 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // ===== Tx A — cancel + audit insert =====
+  // ===== Tx A -- cancel + audit insert =====
   let txA: { routineRunId: number };
   try {
     txA = await txACancelAndAudit({
-      tenantId: operator.tenantId,
-      operatorUserId: operator.operatorUserId,
+      tenantId: operatorTenantId,
+      operatorUserId,
       date: currentDateGmt(),
     });
   } catch (e) {
@@ -131,7 +126,7 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(500, { ok: false, error: `Tx A failed: ${msg}` });
   }
 
-  // ===== External /fire — NO DB tx open here (R3 invariant) =====
+  // ===== External /fire -- NO DB tx open here (R3 invariant) =====
   let fireResult: Awaited<ReturnType<typeof firePlannerRoutine>>;
   try {
     fireResult = await firePlannerRoutine();
@@ -140,7 +135,7 @@ export async function POST(req: Request): Promise<Response> {
     fireResult = { ok: false, errorMessage: msg };
   }
 
-  // ===== Tx B — settle audit row =====
+  // ===== Tx B -- settle audit row =====
   try {
     await txBSettleAudit({
       routineRunId: txA.routineRunId,
@@ -153,7 +148,7 @@ export async function POST(req: Request): Promise<Response> {
     // failed. Surface the stuck row for orphan-detect cron + show the
     // anthropic id so the dashboard can warn the operator.
     const msg = e instanceof Error ? e.message : String(e);
-    process.stderr.write(`[replan] Tx B failed: ${msg} — orphan-detect will recover\n`);
+    process.stderr.write(`[replan] Tx B failed: ${msg} -- orphan-detect will recover\n`);
     return jsonRes(500, {
       ok: false,
       error: `Tx B settle failed: ${msg}`,

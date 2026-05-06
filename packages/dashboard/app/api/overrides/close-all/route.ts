@@ -1,17 +1,19 @@
 /**
- * POST /api/overrides/close-all — close every open MT5 position.
+ * POST /api/overrides/close-all -- close every open MT5 position.
  *
  * AC-016-2 + AC-016-2-b. Body REQUIRES the literal string "CLOSE-ALL" as
- * the confirmation key — this is a typo guard so a fat-finger doesn't
+ * the confirmation key -- this is a typo guard so a fat-finger doesn't
  * close the whole portfolio. The dashboard UI will surface a separate
  * confirmation modal where the operator types CLOSE-ALL by hand.
+ *
+ * v1.2 FR-025 D3: auth swept to lib/resolve-operator-auth.
  */
 
 import { CSRF_COOKIE_NAME, validateCsrf } from '@/lib/csrf';
-import { buildOverrideDeps, resolveOperatorFromSession } from '@/lib/override-bind';
+import { buildOverrideDeps } from '@/lib/override-bind';
 import { executeOverride } from '@/lib/override-handler';
+import { resolveOperatorAuth } from '@/lib/resolve-operator-auth';
 
-const SESSION_COOKIE_NAMES = ['__Secure-authjs.session-token', 'authjs.session-token'];
 const CONFIRMATION_LITERAL = 'CLOSE-ALL';
 
 interface CloseAllRequestBody {
@@ -24,19 +26,6 @@ function jsonRes(status: number, body: unknown): Response {
     status,
     headers: { 'content-type': 'application/json' },
   });
-}
-
-function readSessionCookie(req: Request): string | undefined {
-  const raw = req.headers.get('cookie');
-  if (raw === null) return undefined;
-  const parts = raw.split(';').map((p) => p.trim());
-  for (const name of SESSION_COOKIE_NAMES) {
-    const match = parts.find((p) => p.startsWith(`${name}=`));
-    if (match !== undefined) {
-      return match.slice(name.length + 1);
-    }
-  }
-  return undefined;
 }
 
 function readCsrfCookie(req: Request): string | undefined {
@@ -54,10 +43,14 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(500, { ok: false, error: 'server misconfigured: AUTH_SECRET missing' });
   }
 
-  const sessionTok = readSessionCookie(req);
-  const operator = await resolveOperatorFromSession(sessionTok);
-  if (operator === null) {
-    return jsonRes(401, { ok: false, error: 'unauthenticated' });
+  const auth = await resolveOperatorAuth(req);
+  if (!auth.ok) {
+    return jsonRes(auth.status, { ok: false, error: auth.reason });
+  }
+  const operatorTenantId = auth.operator.tenantId;
+  const operatorUserId = Number(auth.operator.id);
+  if (!Number.isFinite(operatorUserId) || operatorUserId <= 0) {
+    return jsonRes(401, { ok: false, error: 'internal-token not permitted for override actions' });
   }
 
   let body: CloseAllRequestBody;
@@ -74,7 +67,7 @@ export async function POST(req: Request): Promise<Response> {
     return jsonRes(403, { ok: false, error: `csrf invalid: ${csrfResult.reason ?? 'unknown'}` });
   }
 
-  // AC-016-2 confirmation literal — case-sensitive exact match.
+  // AC-016-2 confirmation literal -- case-sensitive exact match.
   if (body.confirmation !== CONFIRMATION_LITERAL) {
     return jsonRes(400, {
       ok: false,
@@ -82,12 +75,12 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  const deps = buildOverrideDeps({ tenantId: operator.tenantId, shape: { type: 'close_all' } });
+  const deps = buildOverrideDeps({ tenantId: operatorTenantId, shape: { type: 'close_all' } });
   try {
     const result = await executeOverride(
       {
-        tenantId: operator.tenantId,
-        operatorUserId: operator.operatorUserId,
+        tenantId: operatorTenantId,
+        operatorUserId,
         actionType: 'close_all',
         targetPair: null,
         paramsJson: { confirmation: CONFIRMATION_LITERAL },

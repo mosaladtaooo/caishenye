@@ -25,7 +25,31 @@ interface LoginBody {
   token?: unknown;
 }
 
+/**
+ * AC-023-5 EMERGENCY_TOKEN_LOGIN_ENABLED feature flag.
+ *
+ * Default = 'true' for v1.2 first-deploy safety (operator can still get in
+ * if SimpleWebAuthn breaks). After 7 consecutive days of successful passkey
+ * logins on both authenticators (per the dashboard banner condition), the
+ * operator runs `vercel env edit production EMERGENCY_TOKEN_LOGIN_ENABLED false`.
+ *
+ * When 'false': route returns 404 regardless of body shape -- the surface is
+ * gone, not denying a bad token. Vitest covers true / false / unset.
+ */
+function tokenLoginEnabled(): boolean {
+  const v = process.env.EMERGENCY_TOKEN_LOGIN_ENABLED;
+  if (v === undefined) return true; // safe-default per AC-023-5 lifecycle step 5.
+  return v === 'true';
+}
+
 export async function POST(req: Request): Promise<Response> {
+  if (!tokenLoginEnabled()) {
+    return new Response(JSON.stringify({ error: 'not found' }), {
+      status: 404,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
   const expectedToken = process.env.INITIAL_REGISTRATION_TOKEN ?? '';
   const authSecret = process.env.AUTH_SECRET ?? '';
   if (expectedToken.length === 0 || authSecret.length === 0) {

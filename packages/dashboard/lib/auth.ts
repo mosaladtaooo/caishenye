@@ -1,29 +1,30 @@
 /**
- * Auth.js v5 + DrizzleAdapter + WebAuthn (Passkey) provider.
+ * v1.2 FR-023 D4: Auth.js v5 reduced to a Credentials stub.
  *
- * NFR-009: every dashboard route is auth-gated. The middleware (middleware.ts)
- * uses auth() to redirect unauthenticated requests; route handlers re-verify
- * via auth() before any state-changing action.
+ * Passkey provider DROPPED. The four /api/auth/webauthn/* routes built on
+ * @simplewebauthn v13 are now the canonical passkey path. Token fallback
+ * lives at /api/auth/operator-login behind EMERGENCY_TOKEN_LOGIN_ENABLED.
  *
- * INITIAL_REGISTRATION_TOKEN gates the FIRST passkey enrollment; once a
- * user is registered, subsequent auth uses passkey-only.
+ * NFR-009: middleware still routes through verifyOperatorCookie + the
+ * shared resolveOperatorAuth helper; this module is purely the shape
+ * helper that the surviving [...nextauth] route consumes.
  *
- * The Auth.js v5 NextAuth() factory exposes:
- *   handlers: { GET, POST }  — for app/api/auth/[...nextauth]/route.ts
- *   auth                      — server-side session check (used in
- *                                middleware + route handlers + RSC layout)
- *   signIn / signOut          — programmatic helpers (used in /login)
+ * INITIAL_REGISTRATION_TOKEN: now consumed by /api/auth/operator-login.
  *
- * Wire-up entry point depends on operator-supplied env (AUTH_SECRET +
- * INITIAL_REGISTRATION_TOKEN); the runtime initialiser is exported here
- * but the actual NextAuth() factory call happens lazily on first import
- * to avoid module-load-time env reads.
+ * The Auth.js v5 NextAuth() factory still exposes:
+ *   handlers: { GET, POST }  -- for app/api/auth/[...nextauth]/route.ts
+ *   auth                      -- server-side session check (kept for shape)
+ *
+ * Wire-up entry point still depends on operator-supplied env (AUTH_SECRET);
+ * runtime initialiser is exported here, factory call happens lazily on
+ * first import.
  */
 
-// NOTE: This file is the structural skeleton. The Auth.js v5 NextAuth()
-// factory call lives in app/api/auth/[...nextauth]/route.ts where Next.js
-// can wire the handlers automatically. This module exposes the typed
-// configuration that route.ts consumes.
+// NOTE: structural skeleton only. The actual NextAuth() factory call lives
+// in app/api/auth/[...nextauth]/route.ts. v1.2 reduces the providers list
+// to a single Credentials stub that always returns null -- middleware
+// still works because resolveOperatorAuth handles the operator-cookie path
+// independently.
 
 import type { NextAuthConfig } from 'next-auth';
 import type { Adapter } from 'next-auth/adapters';

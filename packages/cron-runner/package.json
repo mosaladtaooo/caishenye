@@ -1,0 +1,21 @@
+{
+  "name": "@caishen/cron-runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./scripts/loop.ts",
+  "scripts": {
+    "tsc": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@caishen/db": "workspace:*",
+    "drizzle-orm": "0.39.1",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.0",
+    "vitest": "3.2.4"
+  }
+}

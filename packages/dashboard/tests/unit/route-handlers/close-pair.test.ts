@@ -86,6 +86,16 @@ async function importRoute() {
     );
     return { ...actual, executeOverride: executeOverrideSpy };
   });
+  // FR-025 D3: auth resolver moved to lib/auth-js-session; route now uses
+  // lib/resolve-operator-auth which calls auth-js-session for the auth-js
+  // path. Mock both so the existing session-cookie test fixtures continue
+  // resolving to {tenantId:1, operatorUserId:42}.
+  vi.doMock('../../../lib/auth-js-session', () => ({
+    resolveOperatorFromSession: vi.fn(async (sessionTok: string | undefined) => {
+      if (sessionTok === undefined || sessionTok === '') return null;
+      return { tenantId: 1, operatorUserId: 42 };
+    }),
+  }));
   vi.doMock('../../../lib/override-bind', () => ({
     resolveOperatorFromSession: vi.fn(async (sessionTok: string | undefined) => {
       if (sessionTok === undefined || sessionTok === '') return null;
