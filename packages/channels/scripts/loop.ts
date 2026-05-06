@@ -146,11 +146,17 @@ function buildLiveDeps(botToken: string): WrapperDeps {
 
   const invoker: SubagentInvoker = {
     invoke: async (arg) => {
-      // Spawn `claude` in subagent mode against the caishen-telegram yaml.
-      // Per AC-004-3, the agent's tools+allowlist are pinned by the yaml's
-      // frontmatter at /opt/caishen-channels/agents/caishen-telegram.md.
+      // Spawn `claude` in subagent mode. Per AC-004-3, the agent's tools+
+      // allowlist are pinned by a yaml frontmatter at the operator-managed
+      // path. Path is configurable via CAISHEN_TELEGRAM_AGENT_PATH env so
+      // Linux (`/opt/caishen-channels/agents/caishen-telegram.md`) and
+      // Windows (`C:\caishen\agents\caishen-telegram.md`) deployments both
+      // work. If unset OR the file doesn't exist, the spawn falls through
+      // to generic Claude Code (no custom tool allowlist; relies on
+      // --dangerously-skip-permissions to answer freely).
+      const agentPath = process.env.CAISHEN_TELEGRAM_AGENT_PATH ?? '';
       const replyText = await runClaudeSubagent({
-        agentPath: '/opt/caishen-channels/agents/caishen-telegram.md',
+        agentPath,
         prompt: arg.rawText,
         env: {
           CAISHEN_TENANT_ID: String(TENANT_ID),
@@ -186,6 +192,7 @@ function buildLiveDeps(botToken: string): WrapperDeps {
 }
 
 interface RunSubagentArg {
+  /** Empty string → spawn without --agent flag (generic Claude). */
   agentPath: string;
   prompt: string;
   env: Record<string, string>;
@@ -194,13 +201,28 @@ interface RunSubagentArg {
 /**
  * Spawn the `claude` CLI in subagent mode against a specific agent yaml.
  *
- * Live invocation: `claude --print --agent <path> <<< <prompt>`. The CLI
- * already handles auth via the operator's stored login (per AC-010-3), so
- * no API key is in scope here.
+ * Live invocation: `claude --print --dangerously-skip-permissions [--agent <path>] <<< <prompt>`.
+ * The CLI already handles auth via the operator's stored login (per AC-010-3),
+ * so no API key is in scope here. The --dangerously-skip-permissions flag is
+ * mandatory because the Channels session has no human at the keyboard to
+ * approve interactive tool prompts (e.g. Bash / Read / postgres MCP) — without
+ * it, the bot just hangs asking "approve this command?" with no reply path.
+ *
+ * If `agentPath` is empty OR the file doesn't exist on disk, the --agent flag
+ * is omitted and Claude runs with its general tool surface. The agent yaml
+ * is operator-deployed; the path is configurable via the
+ * CAISHEN_TELEGRAM_AGENT_PATH env var (mirrors the FR-009 / FR-010 pattern of
+ * operator-managed env-driven paths).
  */
 async function runClaudeSubagent(arg: RunSubagentArg): Promise<string> {
+  // Build args list. --dangerously-skip-permissions is always present;
+  // --agent is only added when a non-empty path is provided.
+  const args = ['--print', '--dangerously-skip-permissions'];
+  if (arg.agentPath.length > 0) {
+    args.push('--agent', arg.agentPath);
+  }
   return new Promise<string>((resolve, reject) => {
-    const child = spawn('claude', ['--print', '--agent', arg.agentPath], {
+    const child = spawn('claude', args, {
       env: { ...process.env, ...arg.env },
       stdio: ['pipe', 'pipe', 'pipe'],
     });

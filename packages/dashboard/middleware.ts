@@ -3,7 +3,10 @@
  *
  * Public exceptions:
  *   - /login (Auth.js sign-in page)
- *   - /api/auth/* (Auth.js handlers)
+ *   - /auth/passkey-register (FIRST-TIME passkey enrollment; INITIAL_REGISTRATION_TOKEN-gated;
+ *     pre-auth by definition — operator has no session yet)
+ *   - /api/auth/* (Auth.js handlers, including the WebAuthn challenge endpoints
+ *     called by /auth/passkey-register's client component)
  *   - /api/cron/* (CRON_SECRET-gated; auth() does not apply)
  *   - /api/internal/* (INTERNAL_API_TOKEN-gated per ADR-012; auth() does not apply)
  *
@@ -17,6 +20,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = [
   '/login',
+  '/auth/passkey-register',
   '/api/auth',
   '/api/cron',
   '/api/internal',
