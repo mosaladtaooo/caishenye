@@ -6,16 +6,16 @@ harness:
   version: "2.0"           # Increment when harness design changes
   model: "claude-opus-4-7" # Default model for all subagent dispatches
   model_tuning_revision: 0    # incremented each time evaluator.md prompt is modified via /harness:tune-evaluator
-  created: ""              # ISO date when harness was initialized
+  created: "2026-05-01"    # ISO date when harness was initialized
   # Schema migration note: fields added in a newer version ALWAYS have safe defaults so older
   # manifests read without modification. If a field is absent, treat it as its documented default
   # rather than erroring. Breaking schema changes bump harness.version MAJOR and come with a
   # migration path in CHANGELOG — never silently reshape an existing manifest.
 
 project:
-  name: ""
-  description: ""
-  created: ""
+  name: "财神爷 v2"
+  description: "Code-defined replacement for the n8n forex trading system: Claude Code Routines (Planner + per-pair Executors) + always-on Channels session for Telegram + Next.js dashboard. All LLM work bills against Max 20x subscription; zero Anthropic API charges; SPARTAN/MSCP trading IP preserved verbatim."
+  created: "2026-05-01"
 
 # FR-6 Constitution amendment history. Append-only. Each entry records a
 # /harness:constitution-amend invocation (the high-ceremony path that's the ONLY
@@ -57,16 +57,17 @@ state:
   # Spec-edit phases are informational as of v2.0 (prose rule in SKILL.md governs;
   # no mechanical hook enforcement). Subagents are the canonical writers of spec/
   # files via CLAUDE_SUBAGENT=1 dispatch.
-  phase: "planning"
-  current_feature: ""        # e.g., "001-bookmark-crud"
-  current_task: ""           # e.g., "FR-005" — updated after each TDD cycle for mid-build recovery
-  negotiation_round: 0       # incremented each proposal↔review cycle; max 3 before escalation
+  phase: "complete"
+  current_feature: ""
+  current_task: "v1.1-COMPLETE-retrospective-applied-2026-05-06"  # 2026-05-06 — v1.1 100% DONE. ALL code-side AND operator-side items complete. Channels VPS service running, bot replying to Telegram (#6). MT5 funnel returning real account/candles data after Caddy bypass + Tailscale CLI workaround for funnel-rewrites-serve bug (#2). Tenants seed UPSERT shipped (#4). Cron auto-firing live (#1). TwelveData + FFCal + position-mgmt + pending-orders all live. #5 INTERNAL_API_TOKEN rotation skipped per operator. End-state: 3 Anthropic Routines + 18 Vercel internal-API routes + 3 GH Actions cron workflows + 3 NSSM services on VPS. 670 tests across 3 packages, all green, tsc-clean. Build branch HEAD: 82d8793. Operator-noted observation: MT5_BEARER_TOKEN exposed via VS Code selection-paste pattern several times this session (low-risk; demo account; rotation queued for next session if desired). Next harness step: Evaluator EVALUATE pass + retrospective + merge to main (path TBD given build branch + main have unrelated histories). Architecture pivot away from MCP-via-custom-connector (blocked by Anthropic OAuth-only UI + Tailscale 1-port limit). Now: Vercel proxy at /api/internal/ffcal/today fetches the public ForexFactory weekly JSON feed (nfs.faireconomy.media/ff_calendar_thisweek.json) and returns structured JSON — both Planner AND Executor routines call via Bash+curl, same pattern as news/last-24h. New module packages/routines/src/calendar.ts (21 tests). Vercel route resurrected from 501-deprecation stub (8 tests). Both system prompts (planner-systemprompt-vercel-proxy.md, spartan-systemprompt-vercel-proxy.md) updated with new curl recipe + window/impact query params + degraded-path handling. Live-deploy verified at https://caishenv2.vercel.app (deployment id dpl_HuQLfX9F6rfTSvn8tg2ts78YLShj): default probe returned 13 real events (ECB Lagarde, ISM Services PMI, JOLTS), 24h-high probe returned 4, graceful degradation tested. OPERATOR ACTION QUEUED: re-paste both system prompts into Anthropic Routines UI (planner + 13 executor routines) so the curl recipe replaces the dead MCP-connector instructions. Remaining v1.1 backlog: #1 anthropic/schedule 502, #2 MT5 funnel HTTPS scheme, #4 fold seed-tenant into canonical seed, #5 INTERNAL_API_TOKEN rotation, #6 Channels VPS deployment.
+  negotiation_round: 2       # incremented each proposal↔review cycle; max 3 before escalation
   retry_count: 0
-  last_session: ""           # ISO timestamp of last agent dispatch
+  last_session: "2026-05-06T03:30:00Z"  # ISO timestamp of last operator-orchestrator action (v1.1 COMPLETE: Channels VPS service running, MT5 funnel verified with real $122.11 demo balance, all backlog items DONE except the explicitly-skipped #5 token rotation. All commits pushed to origin/harness/build/001-foundation-routines-channels-dashboard HEAD 82d8793. Cron workflow lives on origin/main commit 2b580e5. Trading core ready for next live planner /fire to demonstrate full end-to-end flow with the new toolset.)
 
 features:
-  completed: []              # List of completed feature folder names
-  in_progress: ""            # Currently active feature
+  completed:
+    - "001-foundation-routines-channels-dashboard"  # shipped 2026-05-06; eval=live-behavior PASS; retro adherence 8/10; 5 spec updates applied
+  in_progress: ""
   planned: []                # Upcoming features from roadmap
 
 verification_debt:           # Items flagged but not addressed (from GSD pattern)
